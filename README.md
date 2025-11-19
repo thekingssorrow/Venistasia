@@ -100,17 +100,29 @@ More items and stats
 Project Structure
 
 venistasia/
+
 │
+
 ├── index.html
+
 ├── style.css
+
 │
+
 ├── js/
+
 │   └── game.js
+
 │
+
 ├── api/
+
 │   ├── save.php
+
 │   └── load.php
+
 │
+
 └── db.sql
 
 Contributors
