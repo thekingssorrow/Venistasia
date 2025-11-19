@@ -4,9 +4,11 @@ Venistasia is a modernized, browser-based text adventure game inspired by classi
 
 This project was created for the CSCI 331 Web Development course at Montana State University.
 
+
 About the Game
 
 Venistasia is a text-driven RPG where the player can explore locations, view descriptions, manage inventory, gain experience, level up, and interact with the world through simple commands such as:
+
 
 look
 
@@ -18,11 +20,16 @@ name <your name>
 
 …and more coming soon.
 
+
 Despite its retro style, the game features a real backend with persistent save data and a growing world.
+
+
 
 Technology Stack
 
 This project uses a simple but complete web stack:
+
+
 
 Frontend
 
@@ -33,17 +40,23 @@ CSS3 – Retro-inspired UI styling
 JavaScript – Game engine, command parser, UI updates, autosaving logic
 
 
+
+
 Backend
 
 PHP – API endpoints (save.php, load.php)
 
 MariaDB – Stores player save data in JSON format
 
+
+
 Hosting
 
 Fully hosted on the CSCI331VM Linux Apache server
 
 Game directory: ~/public_html/venistasia/
+
+
 
 Features Implemented
 
@@ -65,6 +78,8 @@ PHP backend for saving/loading JSON state
 
 MariaDB table for persistent storage
 
+
+
 Database Structure
 
 The game uses a single table:
@@ -84,23 +99,35 @@ CREATE TABLE venistasia_saves (
 
 Each row stores a full JSON snapshot of the player’s game state.
 
+
+
 How to Run the Project
+
 1. Clone the repository
 
 git clone https://github.com/<your-username>/<your-repo>.git
 
+
 2. Upload to your server
+
 Place all project files inside:
 
 ~/public_html/venistasia/
 
+
 3. Configure backend
+
 Update api/save.php and api/load.php with your database credentials:
 
+
 $db_host = "localhost";
+
 $db_user = "userXX";
+
 $db_pass = "yourpassword";
+
 $db_name = "dbXX";
+
 
 4. Create the database table
 
@@ -111,19 +138,32 @@ Commands to Try
 
 Type these into the command box:
 
+
 look
+
 go north
+
 inventory
+
 name Six
+
 help
 
+
 Planned Features
+
 Future additions include:
+
 Combat system (monsters, attacks, loot)
+
 Expanded world map
+
 NPC interactions
+
 Quest system
+
 More items and stats
+
 
 Project Structure
 
