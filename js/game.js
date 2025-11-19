@@ -1,22 +1,18 @@
-// =========================
-// Basic game state
-// =========================
-
 const gameState = {
-    playerId: null, // will be filled from localStorage
-    player: {
-        name: "Adventurer",
-        level: 1,
-        xp: 0,
-        xpToLevel: 100,
-        hp: 20,
-        maxHp: 20,
-    },
-    inventory: [
-        { id: "rusty-sword", name: "Rusty Sword", type: "weapon", atk: 1 },
-    ],
-    location: "village_square",
-    flags: {},
+      playerId: null, // will be filled from localStorage
+      player: {
+              name: "Adventurer",
+              level: 1,
+              xp: 0,
+              xpToLevel: 100,
+              hp: 20,
+              maxHp: 20,
+            },
+      inventory: [
+              { id: "rusty-sword", name: "Rusty Sword", type: "weapon", atk: 1 },
+            ],
+      location: "village_square",
+      flags: {},
 };
 
 // =========================
@@ -50,6 +46,7 @@ let outputEl,
     statusLevelEl,
     statusHpEl,
     statusXpEl;
+
 // =========================
 // UI helpers
 // =========================
@@ -93,21 +90,21 @@ function logCommand(text) {
 
 const locations = {
     village_square: {
-        name: "Village Square",
+        name: "Briar's Edge, Village Square",
         description:
-        "You stand in the quiet square of Venistasia's last village. To the north looms a dark forest.",
+        "You stand in the small square of Briar's Edge, a frontier village clinging to the edge of the Shaded Frontier. To the north, the forest waits in a dark line.",
     },
     dark_forest_edge: {
         name: "Forest Edge",
         description:
-        "The trees knit together into a wall of shadow. A narrow path leads deeper north; the village lies to the south.",
+        "The trees rise like a wall of black timber. A narrow path pushes north between the trunks, toward the quake-torn ground and the exposed ruin. The village lies to the south.",
     },
 };
 
 function describeLocation() {
     const loc = locations[gameState.location];
     if (!loc) {
-        logSystem("You are… nowhere? (Invalid location)");
+        logSystem("You are... nowhere? (Invalid location)");
         return;
     }
     logSystem(`${loc.name}\n${loc.description}`);
@@ -146,7 +143,7 @@ function handleGo(direction) {
 
     if (loc === "village_square" && direction === "north") {
         gameState.location = "dark_forest_edge";
-        logSystem("You walk north, towards the dark forest...");
+        logSystem("You walk north, leaving the safety of Briar's Edge behind...");
         describeLocation();
         gainXp(10); // simple: reward exploring
         return;
@@ -154,7 +151,7 @@ function handleGo(direction) {
 
     if (loc === "dark_forest_edge" && direction === "south") {
         gameState.location = "village_square";
-        logSystem("You walk back south, returning to the village.");
+        logSystem("You walk back south, returning to the village square.");
         describeLocation();
         return;
     }
@@ -166,11 +163,12 @@ function handleHelp() {
     logSystem(
         [
             "Available commands:",
-            "  help               – show this help",
-            "  look               – describe your surroundings",
-            "  inventory (or inv) – show your items",
-            "  go <direction>     – move (e.g., 'go north')",
-            "  name <your name>   – set your name",
+            "  help               - show this help",
+            "  look               - describe your surroundings",
+            "  inventory (or inv) - show your items",
+            "  go <direction>     - move (e.g., 'go north')",
+            "  name <your name>   - set your name",
+            "  reset              - wipe your progress and restart",
         ].join("\n")
     );
 }
@@ -178,6 +176,7 @@ function handleHelp() {
 function handleName(name) {
     if (!name) {
         logSystem("You must provide a name. Example: name Six");
+
         return;
     }
     gameState.player.name = name;
@@ -185,7 +184,69 @@ function handleName(name) {
     updateStatusBar();
 }
 
+// =========================
+// Intro / story
+// =========================
+
+function showIntro() {
+    const introText = [
+        "Briar's Edge is a quiet village on the very edge of the Shaded Frontier, one of the last places where the empire's maps fade away into wilderness.",
+        "",
+        "You grew up hearing stories of the Lantern Knights, wanderers who carried crystal lanterns into the deep woods to fight back the darkness.",
+        "You believed every word of those tales. Maybe you still do.",
+        "",
+        "Recently, rumors spread of an ancient ruin unearthed after a quake: a stone ring jutting from the earth, leading down into what people now call the Dawnspire Below.",
+        "Some whisper of treasure. Others of relics left behind by the Lantern Knights.",
+        "And strangely, posters appeared overnight in the village square, promising fame, fortune, and glory to anyone brave enough to enter.",
+        "",
+        "Armed with a rust-flecked sword and an oversized pack, you step toward the forest's edge. The morning is still. Too still.",
+        "",
+        "But the northern path draws you in, just as the old stories once did.",
+        "",
+        "And somewhere far below the ground, something stirs, waiting for you to arrive.",
+    ].join("\n");
+
+    logSystem(introText);
+
+    describeLocation();
+}
+
+// =========================
+// Reset / wipe save
+// =========================
+
+function handleReset() {
+    logSystem("Wiping your progress and starting a new run...");
+
+    if (saveTimeout) {
+        clearTimeout(saveTimeout);
+        saveTimeout = null;
+    }
+
+    gameState.player = {
+        name: "Adventurer",
+        level: 1,
+        xp: 0,
+        xpToLevel: 100,
+        hp: 20,
+        maxHp: 20,
+    };
+
+    gameState.inventory = [
+        { id: "rusty-sword", name: "Rusty Sword", type: "weapon", atk: 1 },
+    ];
+    gameState.location = "village_square";
+    gameState.flags = {};
+
+    updateStatusBar();
+    showIntro();
+    scheduleSave();
+}
+
+// =========================
 // Simple command parser
+// =========================
+
 function handleCommand(raw) {
     const input = raw.trim();
     if (!input) return;
@@ -217,6 +278,9 @@ function handleCommand(raw) {
             // preserve capitalization after 'name '
             handleName(raw.slice(5).trim());
             break;
+        case "reset":
+            handleReset();
+            break;
         default:
             logSystem("You mumble, unsure what that means. (Type 'help' for commands.)");
             break;
@@ -239,7 +303,7 @@ function setSaveIndicator(text) {
 }
 
 function scheduleSave() {
-    setSaveIndicator("Changes pending…");
+    setSaveIndicator("Changes pending...");
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(saveGameToServer, 3000);
 }
@@ -288,37 +352,14 @@ async function loadGameFromServer() {
         if (data && data.state) {
             Object.assign(gameState, data.state);
             logSystem("Welcome back. Your adventure has been restored.");
+            describeLocation();
         } else {
-            const introText = [
-                  "Briar’s Edge is a quiet village on the very edge of the Shaded Frontier—one of the last places where the empire’s maps fade away into wilderness.",
-                  "",
-                  "You grew up hearing stories of the Lantern Knights, wanderers who carried crystal lanterns into the deep woods to fight back the darkness.",
-                  "You believed every word of those tales. Maybe you still do.",
-                  "",
-                  "Recently, rumors spread of an ancient ruin unearthed after a quake: a stone ring jutting from the earth, leading down into what people now call the Dawnspire Below.",
-                  "Some whisper of treasure. Others of relics left behind by the Lantern Knights.",
-                  "And strangely, posters appeared overnight in the village square, promising fame, fortune, and glory to anyone brave enough to enter.",
-                  "",
-                  "Armed with a rust-flecked sword and an oversized pack, you step toward the forest’s edge. The morning is still. Too still.",
-                  "",
-                  "But the northern path draws you in, just as the old stories once did.",
-                  "",
-                  "And somewhere far below the ground, something stirs—waiting for you to arrive."
-            ].join("\\n");
-
-            logSystem(introText);
-            describeLocation();
-
-            ].join("\n");
-
-            logSystem(introText);
-            describeLocation();
-
+            showIntro();
         }
     } catch (err) {
         console.error("Load error:", err);
         logSystem("Could not load save; starting a new game.");
-        describeLocation();
+        showIntro();
     }
 
     updateStatusBar();
@@ -356,4 +397,4 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     loadGameFromServer();
-});                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
+});                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
