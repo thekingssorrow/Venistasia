@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Venistasia – Text RPG</title>
+        <link rel="stylesheet" href="style.css" />\
+    </head>
+    <body>
+        <div id="game-container">
+            <header>
+                <h1>Venistasia</h1>
+                <div id="status-bar">
+                    <span id="status-name"></span>
+                    <span id="status-level"></span>
+                    <span id="status-hp"></span>
+                    <span id="status-xp"></span>
+                </div>
+
+            </header>
+
+            <main>            
+                <div id="output"></div>
+            </main>
+
+            <footer>
+                <form id="command-form">
+                    <input
+                            type="text"
+                            id="command-input"
+                            autocomplete="off"
+                            placeholder="Type a command (help, look, inventory, go north...)"
+                        />
+                </form>
+                <div id="save-indicator">Not saved yet</div>
+            </footer>
+        </div>
+
+        <script src="js/game.js"></script>
+    </body>
+</html>
+
