@@ -289,8 +289,31 @@ async function loadGameFromServer() {
             Object.assign(gameState, data.state);
             logSystem("Welcome back. Your adventure has been restored.");
         } else {
-            logSystem("A new story begins in Venistasia...");
+            const introText = [
+                  "Briar’s Edge is a quiet village on the very edge of the Shaded Frontier—one of the last places where the empire’s maps fade away into wilderness.",
+                  "",
+                  "You grew up hearing stories of the Lantern Knights, wanderers who carried crystal lanterns into the deep woods to fight back the darkness.",
+                  "You believed every word of those tales. Maybe you still do.",
+                  "",
+                  "Recently, rumors spread of an ancient ruin unearthed after a quake: a stone ring jutting from the earth, leading down into what people now call the Dawnspire Below.",
+                  "Some whisper of treasure. Others of relics left behind by the Lantern Knights.",
+                  "And strangely, posters appeared overnight in the village square, promising fame, fortune, and glory to anyone brave enough to enter.",
+                  "",
+                  "Armed with a rust-flecked sword and an oversized pack, you step toward the forest’s edge. The morning is still. Too still.",
+                  "",
+                  "But the northern path draws you in, just as the old stories once did.",
+                  "",
+                  "And somewhere far below the ground, something stirs—waiting for you to arrive."
+            ].join("\\n");
+
+            logSystem(introText);
             describeLocation();
+
+            ].join("\n");
+
+            logSystem(introText);
+            describeLocation();
+
         }
     } catch (err) {
         console.error("Load error:", err);
