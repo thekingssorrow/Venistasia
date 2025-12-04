@@ -338,12 +338,12 @@ function handleInventory() {
 
   logSystem("You are carrying:\n" + lines.join("\n"));
 }
-
 // =========================
 // Combat system
 // =========================
 
 // Enemy templates
+const enemyTemplates = {
   dawnspire_rat: {
     id: "dawnspire_rat",
     name: "Starved Tunnel-Rat",
@@ -360,6 +360,7 @@ function handleInventory() {
 
   // Future: add humanoid / caster enemies here with type: "humanoid" / "caster"
 };
+
 
 function createEnemyInstance(enemyId) {
   const tmpl = enemyTemplates[enemyId];
