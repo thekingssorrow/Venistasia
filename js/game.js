@@ -372,21 +372,21 @@ const enemyIntents = {
     {
       key: "quick",
       damageMult: 1.0,
-      blockMult: 0.6,
+      blockMult: 1.0,
       tell:
         "The {name} drops low, muscles quivering, ready to snap forward in a fast, flesh-tearing lunge."
     },
     {
       key: "heavy",
-      damageMult: 1.8,
-      blockMult: 0.3,
+      damageMult: 2.0,
+      blockMult: 0.0,
       tell:
         "The {name} rears back, whole body coiling as it gathers weight for a bone-cracking slam."
     },
     {
       key: "worry",
-      damageMult: 1.3,
-      blockMult: 0.4,
+      damageMult: 0.0,
+      blockMult: 2.0,
       tell:
         "The {name} paces in a tight, jittering circle, teeth chattering, clearly looking for something to latch onto and not let go."
     }
