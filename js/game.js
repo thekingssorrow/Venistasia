@@ -23,6 +23,7 @@ const gameState = {
     inCombat: false,
     enemy: null,
     previousLocation: null,
+    intent: null, // NEW: what the enemy is winding up to do
   },
 };
 
@@ -310,6 +311,7 @@ function handleLook() {
     describeLocation();
   }
 }
+
 function handleInventory() {
   if (gameState.inventory.length === 0) {
     logSystem("Your inventory is empty.");
@@ -338,6 +340,7 @@ function handleInventory() {
 
   logSystem("You are carrying:\n" + lines.join("\n"));
 }
+
 // =========================
 // Combat system
 // =========================
@@ -361,6 +364,45 @@ const enemyTemplates = {
   // Future: add humanoid / caster enemies here with type: "humanoid" / "caster"
 };
 
+// Enemy intent patterns (what the enemy is about to do next)
+const enemyIntents = {
+  beast: [
+    {
+      key: "quick",
+      damageMult: 1.0,
+      blockMult: 0.6,
+      tell:
+        "The {name} drops low, muscles quivering, ready to snap forward in a fast, flesh-tearing lunge."
+    },
+    {
+      key: "heavy",
+      damageMult: 1.8,
+      blockMult: 0.3,
+      tell:
+        "The {name} rears back, whole body coiling as it gathers weight for a bone-cracking slam."
+    },
+    {
+      key: "worry",
+      damageMult: 1.3,
+      blockMult: 0.4,
+      tell:
+        "The {name} paces in a tight, jittering circle, teeth chattering, clearly looking for something to latch onto and not let go."
+    }
+  ],
+  // later: add 'humanoid' and 'caster'
+};
+
+function chooseEnemyIntent(enemy) {
+  const type = enemy.type || "beast";
+  const pool = enemyIntents[type] || enemyIntents.beast;
+  return pool[roll(0, pool.length - 1)];
+}
+
+function telegraphEnemyIntent(enemy, intent) {
+  if (!intent) return;
+  const line = intent.tell.replace("{name}", enemy.name);
+  logSystem(line);
+}
 
 function createEnemyInstance(enemyId) {
   const tmpl = enemyTemplates[enemyId];
@@ -388,6 +430,7 @@ function startCombat(enemyId) {
   gameState.combat.inCombat = true;
   gameState.combat.enemy = enemy;
   gameState.combat.previousLocation = gameState.location;
+  gameState.combat.intent = null;
 
   const intro = [
     "The air tightens, the space around you suddenly too small, too close. Something shifts just beyond the edge of your vision—a scrape of claw on stone, a wet breath pulled through broken teeth.",
@@ -395,16 +438,21 @@ function startCombat(enemyId) {
     "",
     enemy.description,
     "",
-    "Steel, teeth, or worse—something here is going to break. Type 'attack' to stand your ground or 'run' if your courage falters."
+    "Steel, teeth, or worse—something here is going to break. Type 'attack' to stand your ground, 'block' to brace, or 'run' if your courage falters."
   ].join("\n");
 
   logSystem(intro);
+
+  // First intent
+  gameState.combat.intent = chooseEnemyIntent(enemy);
+  telegraphEnemyIntent(enemy, gameState.combat.intent);
 }
 
 function endCombat() {
   gameState.combat.inCombat = false;
   gameState.combat.enemy = null;
   gameState.combat.previousLocation = null;
+  gameState.combat.intent = null;
 }
 
 function handlePlayerDeath() {
@@ -435,6 +483,77 @@ function gainXp(amount) {
     logSystem(`*** You reached level ${p.level}! Max HP is now ${p.maxHp}. ***`);
   }
   updateStatusBar();
+}
+
+// Shared enemy turn, respects intent and block
+function enemyTurn(blocking = false) {
+  const enemy = gameState.combat.enemy;
+  if (!enemy) return;
+
+  const enemyType = enemy.type || "beast";
+
+  let intent = gameState.combat.intent;
+  if (!intent) {
+    intent = chooseEnemyIntent(enemy);
+    gameState.combat.intent = intent;
+  }
+
+  const enemyCritChance = 15;
+  const enemyCrit = roll(1, 100) <= enemyCritChance;
+
+  let enemyDmg = roll(enemy.atkMin, enemy.atkMax);
+  enemyDmg = Math.max(1, Math.round(enemyDmg * (intent.damageMult || 1)));
+
+  if (enemyCrit) {
+    enemyDmg *= 2;
+  }
+
+  if (blocking) {
+    const blockMult = intent.blockMult != null ? intent.blockMult : 0.4;
+    enemyDmg = Math.floor(enemyDmg * blockMult);
+  }
+
+  const enemyBucket = enemyCrit
+    ? (combatFlavor.enemy.crit[enemyType] || combatFlavor.enemy.crit.beast)
+    : (combatFlavor.enemy.normal[enemyType] || combatFlavor.enemy.normal.beast);
+
+  const enemyLine = pickLine(enemyBucket).replace("{name}", enemy.name);
+
+  if (enemyDmg > 0) {
+    if (blocking) {
+      const blockLines = [
+        "You catch most of the impact on raised steel; the rest shudders down your arms and into your bones.",
+        "You brace behind your weapon and let the blow skid off your guard, pain flaring but not fatal.",
+        "You meet the strike head-on, boots grinding into the stone as you bleed off its strength."
+      ];
+      logSystem(`${enemyLine} (${enemyDmg} damage makes it through your guard.)`);
+      logSystem(pickLine(blockLines));
+    } else {
+      logSystem(`${enemyLine} (${enemyDmg} damage)`);
+    }
+
+    gameState.player.hp -= enemyDmg;
+
+    if (gameState.player.hp <= 0) {
+      gameState.player.hp = 0;
+      updateStatusBar();
+      handlePlayerDeath();
+      return;
+    }
+
+    updateStatusBar();
+    logSystem(
+      `Blood slicks your skin. HP: ${gameState.player.hp}/${gameState.player.maxHp}.`
+    );
+  } else if (blocking) {
+    logSystem("You brace and the blow glances off your guard, leaving only numb arms and a ringing in your bones.");
+  } else {
+    logSystem("The enemy's wild motion fails to find flesh this time.");
+  }
+
+  // roll and telegraph the next intent for the upcoming round
+  gameState.combat.intent = chooseEnemyIntent(enemy);
+  telegraphEnemyIntent(enemy, gameState.combat.intent);
 }
 
 function handleAttack() {
@@ -480,35 +599,8 @@ function handleAttack() {
     return;
   }
 
-  // Enemy counterattack
-  const enemyCritChance = 15;
-  const enemyCrit = roll(1, 100) <= enemyCritChance;
-
-  const enemyBucket = enemyCrit
-    ? (combatFlavor.enemy.crit[enemyType] || combatFlavor.enemy.crit.beast)
-    : (combatFlavor.enemy.normal[enemyType] || combatFlavor.enemy.normal.beast);
-
-  let enemyDmg = roll(enemy.atkMin, enemy.atkMax);
-  if (enemyCrit) {
-    enemyDmg = enemyDmg * 2;
-  }
-
-  gameState.player.hp -= enemyDmg;
-
-  const enemyLine = pickLine(enemyBucket).replace("{name}", enemy.name);
-  logSystem(`${enemyLine} (${enemyDmg} damage)`);
-
-  if (gameState.player.hp <= 0) {
-    gameState.player.hp = 0;
-    updateStatusBar();
-    handlePlayerDeath();
-    return;
-  }
-
-  updateStatusBar();
-  logSystem(
-    `Blood slicks your skin. HP: ${gameState.player.hp}/${gameState.player.maxHp}.`
-  );
+  // Enemy responds according to its current intent
+  enemyTurn(false);
 }
 
 function handleRun() {
@@ -528,36 +620,19 @@ function handleRun() {
   } else {
     // Failed escape
     logSystem("You try to flee, but the enemy cuts you off!");
-    const enemy = gameState.combat.enemy;
-
-    const enemyType = enemy.type || "beast";
-    const enemyCritChance = 15;
-    const enemyCrit = roll(1, 100) <= enemyCritChance;
-    const enemyBucket = enemyCrit
-      ? (combatFlavor.enemy.crit[enemyType] || combatFlavor.enemy.crit.beast)
-      : (combatFlavor.enemy.normal[enemyType] || combatFlavor.enemy.normal.beast);
-
-    let enemyDmg = roll(enemy.atkMin, enemy.atkMax);
-    if (enemyCrit) {
-      enemyDmg = enemyDmg * 2;
-    }
-
-    gameState.player.hp -= enemyDmg;
-
-    const enemyLine = pickLine(enemyBucket).replace("{name}", enemy.name);
-    logSystem(`${enemyLine} (${enemyDmg} damage)`);
-
-    if (gameState.player.hp <= 0) {
-      gameState.player.hp = 0;
-      updateStatusBar();
-      handlePlayerDeath();
-      return;
-    }
-    updateStatusBar();
-    logSystem(
-      `You have ${gameState.player.hp}/${gameState.player.maxHp} HP remaining.`
-    );
+    enemyTurn(false);
   }
+}
+
+// New: block
+function handleBlock() {
+  if (!gameState.combat.inCombat || !gameState.combat.enemy) {
+    logSystem("You raise your guard against nothing but your own nerves.");
+    return;
+  }
+
+  logSystem("You tighten your stance, weapon raised, bracing for whatever comes next.");
+  enemyTurn(true);
 }
 
 // =========================
@@ -604,7 +679,7 @@ function handleRest() {
 function handleGo(direction) {
   // no moving while in combat
   if (gameState.combat.inCombat) {
-    logSystem("You're a little busy not dying right now. Try 'attack' or 'run'.");
+    logSystem("You're a little busy not dying right now. Try 'attack', 'block', or 'run'.");
     return;
   }
 
@@ -663,6 +738,7 @@ function handleHelp() {
       "  go <direction>     - move (e.g., 'go north')",
       "  name <your name>   - set your name",
       "  attack             - attack the enemy in combat",
+      "  block              - brace to blunt the enemy's next attack",
       "  run                - attempt to flee from combat",
       "  rest               - consume a ration to fully restore your HP",
       "  reset              - wipe your progress and restart",
@@ -734,6 +810,7 @@ function handleReset() {
     inCombat: false,
     enemy: null,
     previousLocation: null,
+    intent: null,
   };
 
   updateStatusBar();
@@ -749,6 +826,9 @@ function handleCombatCommand(cmd, raw, rest) {
   switch (cmd) {
     case "attack":
       handleAttack();
+      break;
+    case "block":
+      handleBlock();
       break;
     case "run":
       handleRun();
@@ -767,7 +847,7 @@ function handleCombatCommand(cmd, raw, rest) {
       logSystem("You can't rest while something is trying to rip you open.");
       break;
     default:
-      logSystem("In the heat of battle, that command makes no sense. Try 'attack' or 'run'.");
+      logSystem("In the heat of battle, that command makes no sense. Try 'attack', 'block', or 'run'.");
       break;
   }
 }
@@ -811,6 +891,9 @@ function handleCommand(raw) {
       break;
     case "attack":
       logSystem("There's nothing here to attack.");
+      break;
+    case "block":
+      logSystem("You square your shoulders and raise your guard. Nothing is close enough to hit you. Yet.");
       break;
     case "run":
       logSystem("There's nothing to run from.");
@@ -941,3 +1024,4 @@ window.addEventListener("DOMContentLoaded", () => {
 
   loadGameFromServer();
 });
+
