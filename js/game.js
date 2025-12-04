@@ -14,6 +14,8 @@ const gameState = {
   },
   inventory: [
     { id: "rusty-sword", name: "Rusty Sword", type: "weapon", atk: 1 },
+    { id: "ration", name: "Travel Ration", type: "ration" },
+    { id: "ration", name: "Travel Ration", type: "ration" },
   ],
   location: "village_square",
   flags: {},
@@ -50,6 +52,18 @@ function roll(min, max) {
 
 function pickLine(arr) {
   return arr[roll(0, arr.length - 1)];
+}
+
+// Simple inventory helpers
+function findItemIndexByType(type) {
+  return gameState.inventory.findIndex((item) => item.type === type);
+}
+
+function consumeItemByType(type) {
+  const idx = findItemIndexByType(type);
+  if (idx === -1) return false;
+  gameState.inventory.splice(idx, 1);
+  return true;
 }
 
 // =========================
@@ -516,6 +530,43 @@ function handleRun() {
 }
 
 // =========================
+// Rest system
+// =========================
+
+function handleRest() {
+  if (gameState.combat.inCombat) {
+    logSystem("You can't rest while something is trying to tear you apart.");
+    return;
+  }
+
+  const p = gameState.player;
+
+  if (p.hp >= p.maxHp) {
+    logSystem("You're already as patched up as you're going to get. Rest would only waste a ration.");
+    return;
+  }
+
+  const hadRation = consumeItemByType("ration");
+  if (!hadRation) {
+    logSystem("You rummage through your pack, but there's nothing left to eat. No ration, no rest.");
+    return;
+  }
+
+  p.hp = p.maxHp;
+  updateStatusBar();
+
+  const restLines = [
+    "You find a patch of ground that isn't completely soaked or sharp, chew through a tasteless ration, and force yourself to breathe until the shaking slows. After a while, the pain dulls.",
+    "You sit with your back to cold stone, dry crumbs catching in your teeth as you choke down a ration. It's enough to steady your hands and pull your strength back together.",
+    "You wrap torn cloth a little tighter, swallow a ration that tastes of dust and salt, and let time drag past in the dark. Eventually, your body remembers how to feel whole.",
+    "You eat in silence, every bite a chore. The ration is stale, but it keeps you upright. When you stand again, your wounds have stopped screaming quite so loudly."
+  ];
+
+  logSystem(pickLine(restLines));
+  logSystem(`Your strength crawls back. HP fully restored: ${p.hp}/${p.maxHp}.`);
+}
+
+// =========================
 // Movement
 // =========================
 
@@ -582,6 +633,7 @@ function handleHelp() {
       "  name <your name>   - set your name",
       "  attack             - attack the enemy in combat",
       "  run                - attempt to flee from combat",
+      "  rest               - consume a ration to fully restore your HP",
       "  reset              - wipe your progress and restart",
     ].join("\n")
   );
@@ -642,6 +694,8 @@ function handleReset() {
 
   gameState.inventory = [
     { id: "rusty-sword", name: "Rusty Sword", type: "weapon", atk: 1 },
+    { id: "ration", name: "Travel Ration", type: "ration" },
+    { id: "ration", name: "Travel Ration", type: "ration" },
   ];
   gameState.location = "village_square";
   gameState.flags = {};
@@ -677,6 +731,9 @@ function handleCombatCommand(cmd, raw, rest) {
       break;
     case "help":
       handleHelp();
+      break;
+    case "rest":
+      logSystem("You can't rest while something is trying to rip you open.");
       break;
     default:
       logSystem("In the heat of battle, that command makes no sense. Try 'attack' or 'run'.");
@@ -726,6 +783,9 @@ function handleCommand(raw) {
       break;
     case "run":
       logSystem("There's nothing to run from.");
+      break;
+    case "rest":
+      handleRest();
       break;
     case "reset":
       handleReset();
