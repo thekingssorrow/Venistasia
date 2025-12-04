@@ -33,6 +33,7 @@ const gameState = {
     // gotVestibuleLoot: false,
     // gnawedStoreroomTrapDone: false,
     // gotStoreroomBuckler: false,
+    // outerHallFirstCheck: false,
   },
   combat: {
     inCombat: false,
@@ -376,6 +377,15 @@ const locations = {
       "Sacks lie torn open across the floor, spilling long-mummified grain and a carpet of small bones. Every step sets something fragile cracking under your boots."
     ].join(" "),
   },
+
+  // Room 6 – Outer Hall of Lanterns
+  outer_hall_lanterns: {
+    name: "Dawnspire – Outer Hall of Lanterns",
+    description: [
+      "A long hall runs north and east from here, its walls lined with broken sconces and cracked stone lanterns. Faint, dusty halos stain the ceiling where light once burned and bled away.",
+      "Most of the lanterns hang shattered or gutted, but here and there an intact sconce remains: shallow stone cups shaped to cradle something prismatic, now empty and cold."
+    ].join(" "),
+  },
 };
 
 // Exits helper text for each location
@@ -393,9 +403,11 @@ const exitsByLocation = {
   collapsed_stairwell:
     "Obvious exits: up – back to the cracked landing; down/forward – into the rat-gnawed chamber.",
   rat_gnawed_vestibule:
-    "Obvious exits: west/back – toward the twisted stairwell; east – into a gnawed storeroom; north – toward a broader hall of old lantern brackets.",
+    "Obvious exits: west/back – toward the twisted stairwell; east – into a gnawed storeroom; north – into the Outer Hall of Lanterns.",
   gnawed_storeroom:
     "Obvious exits: west/back – through the low arch into the rat-gnawed vestibule.",
+  outer_hall_lanterns:
+    "Obvious exits: south – back to the rat-gnawed vestibule; east – toward a flickering node of old power; north – toward a sealed Door of Failed Light.",
 };
 
 function printExitsForLocation(id) {
@@ -485,7 +497,7 @@ function runCollapsedStairTrap() {
     updateStatusBar();
     // Custom trap death text instead of generic combat death
     handleTrapDeath("collapsed_stair_rock");
-    return false; // you died; caller should stop
+    return false; // you died; movement should not continue
   }
 
   updateStatusBar();
@@ -545,7 +557,7 @@ function maybeGrantVestibuleLoot() {
   logSystem("You gain: Travel Ration, Dirty Bandage.");
 }
 
-// helper: storeroom loot (Rust-Flecked Buckler)
+// helper: storeroom loot (Rust-Flecked Buckler + Lantern Shard)
 function maybeGrantStoreroomBuckler() {
   if (gameState.flags.gotStoreroomBuckler) return;
   if (!gameState.flags.gnawedStoreroomTrapDone) return; // only after disturbing the bones
@@ -558,15 +570,24 @@ function maybeGrantStoreroomBuckler() {
     type: "shield",
   };
 
-  gameState.inventory.push(buckler);
+  const shard = {
+    id: "lantern-shard",
+    name: "Lantern Shard",
+    type: "key",
+  };
+
+  gameState.inventory.push(buckler, shard);
 
   logSystem(
     "Kicking aside scattered bones, you spot the curve of metal under a fallen shelf. You drag free a small buckler, its surface pitted with rust and old scratches."
   );
   logSystem(
-    "Whatever carried it last died here, but the iron still feels solid in your grip. Against beasts, it might just turn a killing blow into a glancing one."
+    "Nearby, half-wedged between old grain and gnawed bone, a sliver of crystal catches the lichen-light. It’s a narrow shard of something prismatic, edges too clean to be natural."
   );
-  logSystem("You gain: Rust-Flecked Buckler.");
+  logSystem(
+    "Whatever carried them last died here, but the iron still feels solid in your grip—and the shard feels conspicuously made to sit in some waiting socket."
+  );
+  logSystem("You gain: Rust-Flecked Buckler, Lantern Shard.");
 
   // Auto-equip if you aren't using any shield yet
   ensureEquipment();
@@ -684,7 +705,7 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
     const used = useBandage(inCombat);
     if (!used) return;
 
-    // In combat, using a bandage is your whole turn and prevents damage this round.
+    // In combat, using a bandage is your whole turn and prevents that round's damage.
     // We deliberately do NOT call enemyTurn() here.
     return;
   }
@@ -1324,11 +1345,31 @@ function handleGo(direction) {
       return;
     }
 
-    // North -> Outer Hall of Lanterns (Room 6 placeholder)
+    // North -> Outer Hall of Lanterns (Room 6)
     if (direction === "north") {
+      gameState.location = "outer_hall_lanterns";
       logSystem(
-        "You study a tunnel that climbs into a broader hall, faint traces of old lantern brackets jutting from the stone. For now, the path feels unfinished, more idea than place."
+        "You follow a tunnel that climbs and straightens, the gnawed stone slowly giving way to a long hall of dead lantern brackets."
       );
+      describeLocation();
+
+      // First-pass random rat or none
+      if (!gameState.flags.outerHallFirstCheck) {
+        gameState.flags.outerHallFirstCheck = true;
+        const spawn = roll(1, 100) <= 60; // 60% chance of a rat the first time
+        if (spawn) {
+          gameState.combat.previousLocation = "rat_gnawed_vestibule";
+          logSystem(
+            "From behind a cracked lantern base, something hairless and starving peels itself off the stone and drags into your path."
+          );
+          startCombat("dawnspire_rat");
+        } else {
+          logSystem(
+            "For once, nothing immediately slinks out of the dark to meet you. The hall only watches, empty and patient."
+          );
+        }
+      }
+
       return;
     }
   }
@@ -1341,6 +1382,32 @@ function handleGo(direction) {
         "You pick your way back through the low arch, leaving the bone-littered storeroom behind."
       );
       describeLocation();
+      return;
+    }
+  }
+
+  // Room 6 – Outer Hall of Lanterns logic
+  if (loc === "outer_hall_lanterns") {
+    if (direction === "south") {
+      gameState.location = "rat_gnawed_vestibule";
+      logSystem(
+        "You retrace your steps, letting the dead lanterns fade behind you as you slip back toward the gnawed vestibule."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      logSystem(
+        "A faint tug of air hints at a chamber ahead—a place where the dark feels thinner, like something still remembers how to flicker there. That part of the Dawnspire isn't ready yet."
+      );
+      return;
+    }
+
+    if (direction === "north") {
+      logSystem(
+        "The hall tightens around a heavy, sealed door rimmed with dead lantern cups. Whatever waits beyond is still only a shape in your future."
+      );
       return;
     }
   }
