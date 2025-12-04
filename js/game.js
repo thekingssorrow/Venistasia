@@ -23,7 +23,7 @@ const gameState = {
     inCombat: false,
     enemy: null,
     previousLocation: null,
-    intent: null, // NEW: what the enemy is winding up to do
+    intent: null, // what the enemy is winding up to do
   },
 };
 
@@ -68,7 +68,7 @@ function consumeItemByType(type) {
 }
 
 // =========================
-// Combat flavor text
+/* Combat flavor text */
 // =========================
 
 const combatFlavor = {
@@ -82,7 +82,7 @@ const combatFlavor = {
         "You drive your weapon into the {name}'s shoulder, wrenching it free with effort.",
         "Your strike sends the {name} skidding across the stone, claws scraping for purchase.",
         "You catch the {name} mid-lunge and knock it sideways with a brutal blow.",
-        "You stab low, skewering the {name}'s belly before yanking your weapon back."
+        "You stab low, skewering the {name}'s belly before yanking your weapon back.",
       ],
       humanoid: [
         "You smash your weapon into the {name}'s ribs, feeling something crack under the impact.",
@@ -92,7 +92,7 @@ const combatFlavor = {
         "You catch the {name} off-balance and slam your weapon into their chest.",
         "Your blow crashes against bone; the {name} grunts as the impact steals their breath.",
         "You rake your weapon across the {name}'s arm, leaving a deep, leaking gash.",
-        "You ram your shoulder into the {name} as you cut, sending them stumbling through their own blood."
+        "You ram your shoulder into the {name} as you cut, sending them stumbling through their own blood.",
       ],
       caster: [
         "You cut through trailing cloth and flesh as the {name} scrambles to finish a spell.",
@@ -102,8 +102,8 @@ const combatFlavor = {
         "Your strike hammers into the {name}'s ribs, knocking loose a wheezing breath and a spray of red.",
         "You hack through dangling charms and flesh; the {name}'s hands shake, blood dripping from their fingers.",
         "You drive your blade into the {name}'s shoulder; the smell of singed cloth and blood mingles as their spell fizzles out.",
-        "Your attack crashes into the {name}'s gut, folding them in half around the wound."
-      ]
+        "Your attack crashes into the {name}'s gut, folding them in half around the wound.",
+      ],
     },
     crit: {
       beast: [
@@ -114,7 +114,7 @@ const combatFlavor = {
         "You slam the {name} into the stone and feel its spine snap under your weight. CRITICAL HIT.",
         "Your strike opens the {name} from jaw to chest; teeth and tongue spill out with gore. CRITICAL HIT.",
         "You crush the {name}'s skull under your boot after the blow lands, bone popping wetly. CRITICAL HIT.",
-        "You tear half the {name}'s face away with a brutal swing; it sprays the wall and collapses twitching. CRITICAL HIT."
+        "You tear half the {name}'s face away with a brutal swing; it sprays the wall and collapses twitching. CRITICAL HIT.",
       ],
       humanoid: [
         "Your weapon caves in the {name}'s skull with a sickening crunch. Blood and bone spray across the stone. CRITICAL HIT.",
@@ -124,7 +124,7 @@ const combatFlavor = {
         "Your blow rips across the {name}'s throat; a hot, pulsing spray coats your hands as their voice gurgles out. CRITICAL HIT.",
         "You ram your weapon deep into the {name}'s chest and feel ribs crack and heart give way. CRITICAL HIT.",
         "Your swing takes half the {name}'s face with it; teeth, blood, and fragments of bone scatter the ground. CRITICAL HIT.",
-        "You twist the blade as you pull it from the {name}'s gut, dragging out loops of slick, steaming entrails. CRITICAL HIT."
+        "You twist the blade as you pull it from the {name}'s gut, dragging out loops of slick, steaming entrails. CRITICAL HIT.",
       ],
       caster: [
         "You drive your weapon straight through the {name}'s chest, snuffing their chant mid-syllable. Blood pours down your hands. CRITICAL HIT.",
@@ -134,9 +134,9 @@ const combatFlavor = {
         "You bury your blade in the {name}'s spine; their legs go slack as they collapse like a cut puppet. CRITICAL HIT.",
         "Your attack opens the {name}'s abdomen; organs bulge and spill as they clutch at themselves in disbelief. CRITICAL HIT.",
         "You slam them against the wall and drive your weapon through their throat, pinning them there as they gurgle out. CRITICAL HIT.",
-        "You slice through both of the {name}'s eyes in a single sweep; they scream, stumbling in circles as blood pours down their cheeks. CRITICAL HIT."
-      ]
-    }
+        "You slice through both of the {name}'s eyes in a single sweep; they scream, stumbling in circles as blood pours down their cheeks. CRITICAL HIT.",
+      ],
+    },
   },
 
   enemy: {
@@ -149,7 +149,7 @@ const combatFlavor = {
         "The {name} scrabbles up your body, claws shredding cloth and carving bloody lines.",
         "The {name} latches onto your hand and gnaws until you wrench it free, leaving skin hanging.",
         "The {name} darts in and snaps at your ribs, leaving a deep, purple-tinged bruise that throbs with every breath.",
-        "The {name} rips a mouthful of flesh from your forearm, hot blood running to your fingertips."
+        "The {name} rips a mouthful of flesh from your forearm, hot blood running to your fingertips.",
       ],
       humanoid: [
         "The {name}'s weapon crunches into your ribs, stealing your breath in a flash of pain.",
@@ -159,7 +159,7 @@ const combatFlavor = {
         "The {name} slams a boot into your knee, sending agony lancing up your leg.",
         "The {name} drags steel across your back as you move, carving a long, stinging wound.",
         "The {name}'s weapon punches into your gut and rips sideways, leaving warmth spilling down your front.",
-        "The {name} hooks your ankle and sends you crashing to the floor, pain jolting through bone."
+        "The {name} hooks your ankle and sends you crashing to the floor, pain jolting through bone.",
       ],
       caster: [
         "A jagged bolt of force slams into your chest, leaving your ribs aching and skin mottled purple.",
@@ -169,8 +169,8 @@ const combatFlavor = {
         "The {name} hurls a lance of warped light that sears a smoking line through your side.",
         "Your muscles knot and spasm as the {name}'s curse digs into nerves and bone.",
         "Black flame licks over your hands, devouring flesh without heat, leaving charred, cracked skin.",
-        "The {name}'s whispered word sends a spike of agony through your spine that leaves you gasping."
-      ]
+        "The {name}'s whispered word sends a spike of agony through your spine that leaves you gasping.",
+      ],
     },
     crit: {
       beast: [
@@ -181,7 +181,7 @@ const combatFlavor = {
         "The {name} rips deep into your side and comes away with a chunk of meat; you can feel warmth pouring out. CRITICAL WOUND.",
         "The {name} drives its teeth into your hand and mangles fingers into useless, shattered shapes. CRITICAL WOUND.",
         "The {name} catches your throat with hooked claws, leaving three parallel, pulsing lines that spill red. CRITICAL WOUND.",
-        "The {name} bites clean through part of your ear; blood runs hot down your neck as sound rings and swims. CRITICAL WOUND."
+        "The {name} bites clean through part of your ear; blood runs hot down your neck as sound rings and swims. CRITICAL WOUND.",
       ],
       humanoid: [
         "The {name}'s weapon crushes into your skull; light explodes behind your eyes as blood runs into your vision. CRITICAL WOUND.",
@@ -191,7 +191,7 @@ const combatFlavor = {
         "The {name} drives a weapon into your gut and twists; white-hot pain floods your body. CRITICAL WOUND.",
         "The {name} smashes the back of your head; you see nothing but smeared shapes and swimming light. CRITICAL WOUND.",
         "The {name}'s strike mangles your forearm; bone shows whitely through shredded flesh. CRITICAL WOUND.",
-        "The {name} hooks your jaw with their weapon, nearly tearing it loose; teeth scatter across the ground. CRITICAL WOUND."
+        "The {name} hooks your jaw with their weapon, nearly tearing it loose; teeth scatter across the ground. CRITICAL WOUND.",
       ],
       caster: [
         "The {name}'s spell erupts inside your chest; you feel something tear and burn at the same time. CRITICAL WOUND.",
@@ -201,10 +201,10 @@ const combatFlavor = {
         "The {name}'s hex rots flesh along your side in seconds; skin blackens and sloughs away. CRITICAL WOUND.",
         "A blast of concussive force snaps your head back; you hear the crunch of something giving way in your neck. CRITICAL WOUND.",
         "The {name}'s magic blinds one eye; blood and milky fluid leak down your cheek as your vision shrinks. CRITICAL WOUND.",
-        "Fire that burns without heat crawls up your arm, eating flesh to bone before guttering out. CRITICAL WOUND."
-      ]
-    }
-  }
+        "Fire that burns without heat crawls up your arm, eating flesh to bone before guttering out. CRITICAL WOUND.",
+      ],
+    },
+  },
 };
 
 // =========================
@@ -266,7 +266,7 @@ const locations = {
     name: "Briar's Edge, Village Square",
     description: [
       "You stand in the cramped heart of Briar's Edge, a frontier village nailed together from weather-beaten timber and old promises. A crooked well sits at the center, its stones slick with moss and the stains of years of use. Smoke drifts from low chimneys, carrying the sour smell of thin stew and overboiled vegetables. Faded posters promising fame and fortune at the 'Dawnspire Below' flap weakly on a message board, their edges curled and greasy from too many hopeful hands.",
-      "Beyond the last sagging rooftops to the north, the Shaded Frontier begins in a hard, dark line of trees. Behind you, the village pretends not to watch you leave."
+      "Beyond the last sagging rooftops to the north, the Shaded Frontier begins in a hard, dark line of trees. Behind you, the village pretends not to watch you leave.",
     ].join(" "),
   },
 
@@ -274,7 +274,7 @@ const locations = {
     name: "Forest Edge",
     description: [
       "The road from Briar's Edge dissolves into churned mud and exposed roots as the forest takes over, its trees packed tight like the bars of a cage. The air here is colder, heavy with the stink of wet earth, old leaves, and the faint metallic tang of something that bled and never quite washed away. Branches knit overhead, letting in only thin, pale ribbons of light that barely reach the ground.",
-      "Every sound seems too loud—your boots in the dirt, your breath, the creak of leather. Somewhere deeper in, something moves just out of sight, and the path north twists into shadow, toward the place the villagers now call the Dawnspire Below. To the south, the village waits like a memory you can still turn back to."
+      "Every sound seems too loud—your boots in the dirt, your breath, the creak of leather. Somewhere deeper in, something moves just out of sight, and the path north twists into shadow, toward the place the villagers now call the Dawnspire Below. To the south, the village waits like a memory you can still turn back to.",
     ].join(" "),
   },
 
@@ -282,11 +282,10 @@ const locations = {
     name: "Dawnspire – Broken Ring",
     description: [
       "The trees fall away into a raw wound in the earth where the ground has split and slumped, exposing a ring of ancient stone half-swallowed by dirt and roots. Weathered pillars lean at sick angles around a central pit where rough steps spiral downward into a throat of cold, unmoving darkness. The air that seeps up from below smells of stale stone, rust, and something older—like the inside of a sealed tomb finally given a mouth.",
-      "Faint scratches and boot-scuffs around the lip of the ring speak of others who came here before you. None of their voices carry back up the stairs."
+      "Faint scratches and boot-scuffs around the lip of the ring speak of others who came here before you. None of their voices carry back up the stairs.",
     ].join(" "),
   },
 };
-
 
 function describeLocation() {
   const loc = locations[gameState.location];
@@ -357,7 +356,7 @@ const enemyTemplates = {
     xpReward: 12,
     description: [
       "A hairless, skeletal rat drags itself into view, its skin stretched thin and shiny over jutting bones. Patches of scabbed flesh flake away as it moves, revealing raw, weeping meat beneath. Its jaw hangs too wide, teeth long and yellowed, clicking together in a feverish rhythm as thin ropes of saliva drip to the stone.",
-      "Its milky eyes roll in their sockets, unfocused but hungry, and every ragged breath rattles through a chest that looks one good kick away from collapsing. Whatever scraps of meat it has found down here were never enough."
+      "Its milky eyes roll in their sockets, unfocused but hungry, and every ragged breath rattles through a chest that looks one good kick away from collapsing. Whatever scraps of meat it has found down here were never enough.",
     ].join(" "),
   },
 
@@ -372,22 +371,22 @@ const enemyIntents = {
       damageMult: 1.0,
       blockMult: 0.6,
       tell:
-        "The {name} drops low, muscles quivering, ready to snap forward in a fast, flesh-tearing lunge."
+        "The {name} drops low, muscles quivering, ready to snap forward in a fast, flesh-tearing lunge.",
     },
     {
       key: "heavy",
       damageMult: 1.8,
       blockMult: 0.3,
       tell:
-        "The {name} rears back, whole body coiling as it gathers weight for a bone-cracking slam."
+        "The {name} rears back, whole body coiling as it gathers weight for a bone-cracking slam.",
     },
     {
       key: "worry",
       damageMult: 1.3,
       blockMult: 0.4,
       tell:
-        "The {name} paces in a tight, jittering circle, teeth chattering, clearly looking for something to latch onto and not let go."
-    }
+        "The {name} paces in a tight, jittering circle, teeth chattering, clearly looking for something to latch onto and not let go.",
+    },
   ],
   // later: add 'humanoid' and 'caster'
 };
@@ -429,8 +428,7 @@ function startCombat(enemyId) {
 
   gameState.combat.inCombat = true;
   gameState.combat.enemy = enemy;
-  // NOTE: previousLocation is now set by the code that *starts* the fight (e.g., movement),
-  // so we do NOT touch gameState.combat.previousLocation here.
+  // previousLocation is set by the caller before starting combat
   gameState.combat.intent = null;
 
   const intro = [
@@ -439,23 +437,7 @@ function startCombat(enemyId) {
     "",
     enemy.description,
     "",
-    "Steel, teeth, or worse—something here is going to break. Type 'attack' to stand your ground, 'block' to brace, or 'run' if your courage falters."
-  ].join("\n");
-
-  logSystem(intro);
-
-  // First intent
-  gameState.combat.intent = chooseEnemyIntent(enemy);
-  telegraphEnemyIntent(enemy, gameState.combat.intent);
-}
-
-  const intro = [
-    "The air tightens, the space around you suddenly too small, too close. Something shifts just beyond the edge of your vision—a scrape of claw on stone, a wet breath pulled through broken teeth.",
-    `${enemy.name} drags itself out of the dark, all twitching hunger and bad intent, drawn by the sound of your heartbeat and the sweat on your skin.`,
-    "",
-    enemy.description,
-    "",
-    "Steel, teeth, or worse—something here is going to break. Type 'attack' to stand your ground, 'block' to brace, or 'run' if your courage falters."
+    "Steel, teeth, or worse—something here is going to break. Type 'attack' to stand your ground, 'block' to brace, or 'run' if your courage falters.",
   ].join("\n");
 
   logSystem(intro);
@@ -477,7 +459,7 @@ function handlePlayerDeath() {
     "Your legs buckle. The world tilts. Warm blood pools beneath you as the cold earth drinks the last of your strength.",
     "You collapse, vision swimming. Your breath rattles in your chest before fading into the dark.",
     "Pain flashes white, then nothing. Your body hits the ground with a hollow thud as everything drains away.",
-    "You fall to your knees, fingers twitching uselessly. The world narrows to a pinprick of cruel light before swallowing you whole."
+    "You fall to your knees, fingers twitching uselessly. The world narrows to a pinprick of cruel light before swallowing you whole.",
   ];
 
   logSystem(pickLine(deathDescriptions));
@@ -541,7 +523,7 @@ function enemyTurn(blocking = false) {
       const blockLines = [
         "You catch most of the impact on raised steel; the rest shudders down your arms and into your bones.",
         "You brace behind your weapon and let the blow skid off your guard, pain flaring but not fatal.",
-        "You meet the strike head-on, boots grinding into the stone as you bleed off its strength."
+        "You meet the strike head-on, boots grinding into the stone as you bleed off its strength.",
       ];
       logSystem(`${enemyLine} (${enemyDmg} damage makes it through your guard.)`);
       logSystem(pickLine(blockLines));
@@ -563,7 +545,9 @@ function enemyTurn(blocking = false) {
       `Blood slicks your skin. HP: ${gameState.player.hp}/${gameState.player.maxHp}.`
     );
   } else if (blocking) {
-    logSystem("You brace and the blow glances off your guard, leaving only numb arms and a ringing in your bones.");
+    logSystem(
+      "You brace and the blow glances off your guard, leaving only numb arms and a ringing in your bones."
+    );
   } else {
     logSystem("The enemy's wild motion fails to find flesh this time.");
   }
@@ -607,7 +591,7 @@ function handleAttack() {
       `The ${enemy.name} hits the ground in a broken heap, blood pooling out to meet your boots.`,
       `The ${enemy.name} twitches once, then lies open and still among its own remains.`,
       `Whatever held the ${enemy.name} together gives out; it slumps into a ruin of meat and bone.`,
-      `The ${enemy.name}'s last breath rattles out in a wet gurgle as its body sags into the dirt.`
+      `The ${enemy.name}'s last breath rattles out in a wet gurgle as its body sags into the dirt.`,
     ];
     logSystem(pickLine(deathLines));
     const xp = enemy.xpReward || 0;
@@ -665,13 +649,17 @@ function handleRest() {
   const p = gameState.player;
 
   if (p.hp >= p.maxHp) {
-    logSystem("You're already as patched up as you're going to get. Rest would only waste a ration.");
+    logSystem(
+      "You're already as patched up as you're going to get. Rest would only waste a ration."
+    );
     return;
   }
 
   const hadRation = consumeItemByType("ration");
   if (!hadRation) {
-    logSystem("You rummage through your pack, but there's nothing left to eat. No ration, no rest.");
+    logSystem(
+      "You rummage through your pack, but there's nothing left to eat. No ration, no rest."
+    );
     return;
   }
 
@@ -682,12 +670,16 @@ function handleRest() {
     "You find a patch of ground that isn't completely soaked or sharp, chew through a tasteless ration, and force yourself to breathe until the shaking slows. After a while, the pain dulls.",
     "You sit with your back to cold stone, dry crumbs catching in your teeth as you choke down a ration. It's enough to steady your hands and pull your strength back together.",
     "You wrap torn cloth a little tighter, swallow a ration that tastes of dust and salt, and let time drag past in the dark. Eventually, your body remembers how to feel whole.",
-    "You eat in silence, every bite a chore. The ration is stale, but it keeps you upright. When you stand again, your wounds have stopped screaming quite so loudly."
+    "You eat in silence, every bite a chore. The ration is stale, but it keeps you upright. When you stand again, your wounds have stopped screaming quite so loudly.",
   ];
 
   logSystem(pickLine(restLines));
   logSystem(`Your strength crawls back. HP fully restored: ${p.hp}/${p.maxHp}.`);
 }
+
+// =========================
+// Movement
+// =========================
 
 function handleGo(direction) {
   // no moving while in combat
@@ -714,7 +706,7 @@ function handleGo(direction) {
   }
 
   if (loc === "dark_forest_edge" && direction === "north") {
-    // You are moving from the forest edge into the dungeon entrance.
+    // Moving from the forest edge into the dungeon entrance.
     // If a fight starts here, running should take you back to THIS room.
     const fromLocation = gameState.location;
 
@@ -727,7 +719,7 @@ function handleGo(direction) {
     // First encounter
     if (!gameState.flags.firstDungeonFightDone) {
       gameState.flags.firstDungeonFightDone = true;
-      gameState.combat.previousLocation = fromLocation; // <- where 'run' will send you
+      gameState.combat.previousLocation = fromLocation; // where 'run' will send you
       startCombat("dawnspire_rat");
     }
     return;
@@ -742,7 +734,6 @@ function handleGo(direction) {
 
   logSystem("You can't go that way.");
 }
-
 
 // =========================
 // Help / name / reset
@@ -867,7 +858,9 @@ function handleCombatCommand(cmd, raw, rest) {
       logSystem("You can't rest while something is trying to rip you open.");
       break;
     default:
-      logSystem("In the heat of battle, that command makes no sense. Try 'attack', 'block', or 'run'.");
+      logSystem(
+        "In the heat of battle, that command makes no sense. Try 'attack', 'block', or 'run'."
+      );
       break;
   }
 }
@@ -913,7 +906,9 @@ function handleCommand(raw) {
       logSystem("There's nothing here to attack.");
       break;
     case "block":
-      logSystem("You square your shoulders and raise your guard. Nothing is close enough to hit you. Yet.");
+      logSystem(
+        "You square your shoulders and raise your guard. Nothing is close enough to hit you. Yet."
+      );
       break;
     case "run":
       logSystem("There's nothing to run from.");
