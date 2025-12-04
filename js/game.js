@@ -24,6 +24,10 @@ const gameState = {
     // stairsCollapsed: false,
     // gotLanternBadge: false,
     // collapsedStairTrapDone: false,
+    // firstVestibuleVisit: false,
+    // vestibuleRatsRemaining: 0,
+    // vestibuleCombatDone: false,
+    // gotVestibuleLoot: false,
   },
   combat: {
     inCombat: false,
@@ -324,7 +328,7 @@ const locations = {
     name: "Dawnspire – Rat-gnawed Vestibule",
     description: [
       "The stair spills into a low, wedge-shaped chamber where the stone has been gnawed and worried at the edges, as if a hundred sets of teeth tried to chew their way out of the walls.",
-      "Trailing scraps of old cloth and leather hang from rusted hooks, and the floor is slick with a thin film of something that smells like old fur, old blood, and wet stone."
+      "Chewed-open tunnels vein the lower masonry. The remains of an old camp slump against one wall—a rotted bedroll fused to the floor with damp and mold, a snapped spear haft pinned beneath it, and the scattered ghosts of a pack long since torn apart."
     ].join(" "),
   },
 };
@@ -386,6 +390,51 @@ function runCollapsedStairTrap() {
   return true;
 }
 
+// helper: vestibule loot (after fight)
+function maybeGrantVestibuleLoot() {
+  if (gameState.flags.gotVestibuleLoot) return;
+  if (!gameState.flags.vestibuleCombatDone) return;
+
+  gameState.flags.gotVestibuleLoot = true;
+
+  const ration = { id: "ration", name: "Travel Ration", type: "ration" };
+  const bandage = {
+    id: "dirty-bandage",
+    name: "Dirty Bandage",
+    type: "consumable",
+    heal: 4, // you can hook this up later to a 'use' command
+  };
+
+  gameState.inventory.push(ration, bandage);
+
+  logSystem(
+    "Picking through the shredded bedroll and the ruins of an old pack, you turn up a half-stale travel ration and a strip of dirty bandage stiff with old blood."
+  );
+  logSystem("You gain: Travel Ration, Dirty Bandage.");
+}
+
+// helper: start the vestibule multi-rat fight
+function startVestibuleFight() {
+  gameState.flags.firstVestibuleVisit = true;
+
+  // 50% chance of 2 rats, otherwise 1
+  const twoRats = roll(1, 100) <= 50;
+  gameState.flags.vestibuleRatsRemaining = twoRats ? 2 : 1;
+  gameState.combat.previousLocation = "collapsed_stairwell";
+
+  if (twoRats) {
+    logSystem(
+      "The scratching in the tunnels builds to a frenzy. Two starved shapes spill out of the holes at once, all teeth and motion."
+    );
+  } else {
+    logSystem(
+      "Scratching builds in the walls until a single starved shape spills out of a crack in the stone, claws scrabbling for purchase."
+    );
+  }
+
+  startCombat("dawnspire_rat");
+}
+
 function describeLocation() {
   const loc = locations[gameState.location];
   if (!loc) {
@@ -397,6 +446,14 @@ function describeLocation() {
   // special: landing loot
   if (gameState.location === "cracked_landing") {
     maybeGrantLanternBadge();
+  }
+
+  // special: vestibule loot (only when not currently in combat)
+  if (
+    gameState.location === "rat_gnawed_vestibule" &&
+    !gameState.combat.inCombat
+  ) {
+    maybeGrantVestibuleLoot();
   }
 }
 
@@ -698,6 +755,35 @@ function handleAttack() {
     logSystem(pickLine(deathLines));
     const xp = enemy.xpReward || 0;
     if (xp > 0) gainXp(xp);
+
+    // Special case: multi-rat fight in Rat-gnawed Vestibule
+    if (
+      gameState.location === "rat_gnawed_vestibule" &&
+      gameState.flags &&
+      gameState.flags.vestibuleRatsRemaining &&
+      gameState.flags.vestibuleRatsRemaining > 1
+    ) {
+      // One down, at least one left
+      gameState.flags.vestibuleRatsRemaining--;
+
+      const newEnemy = createEnemyInstance("dawnspire_rat");
+      gameState.combat.enemy = newEnemy;
+      gameState.combat.intent = null;
+
+      logSystem(
+        "Something else skitters in the gnawed stone. Another starved tunnel-rat claws its way out of a hole, drawn by the blood."
+      );
+
+      gameState.combat.intent = chooseEnemyIntent(newEnemy);
+      telegraphEnemyIntent(newEnemy, gameState.combat.intent);
+      return;
+    }
+
+    // Vestibule fight fully cleared
+    if (gameState.location === "rat_gnawed_vestibule") {
+      gameState.flags.vestibuleCombatDone = true;
+    }
+
     endCombat();
     return;
   }
@@ -924,8 +1010,43 @@ function handleGo(direction) {
       }
 
       gameState.location = "rat_gnawed_vestibule";
-      logSystem("Shaking off the sting of falling stone, you press deeper down the warped stair into the dark.");
+      logSystem("Shaking the last of the dust from your shoulders, you push deeper down the warped stair into the gnawed stone ahead.");
       describeLocation();
+
+      // Guaranteed vestibule fight on first visit
+      if (!gameState.flags.firstVestibuleVisit) {
+        startVestibuleFight();
+      }
+
+      return;
+    }
+  }
+
+  // Room 4 – Rat-gnawed Vestibule logic
+  if (loc === "rat_gnawed_vestibule") {
+    // Back to Room 3
+    if (direction === "west" || direction === "back") {
+      gameState.location = "collapsed_stairwell";
+      logSystem(
+        "You edge back toward the twisted stair, leaving the chewed tunnels behind you for now."
+      );
+      describeLocation();
+      return;
+    }
+
+    // East -> Gnawed Storeroom (Room 5 placeholder)
+    if (direction === "east") {
+      logSystem(
+        "You pick your way toward a narrow arch choked with bite-marks and old claw-gouges. Beyond, a cramped storeroom waits—but that part of the Dawnspire isn't ready yet."
+      );
+      return;
+    }
+
+    // North -> Outer Hall of Lanterns (Room 6 placeholder)
+    if (direction === "north") {
+      logSystem(
+        "You study a tunnel that climbs into a broader hall, faint traces of old lantern brackets jutting from the stone. For now, the path feels unfinished, more idea than place."
+      );
       return;
     }
   }
@@ -1089,7 +1210,7 @@ function handleCommand(raw) {
       break;
     case "go":
       if (!rest.length) {
-        logSystem("Go where? (north, south, east, west, up, down, forward)");
+        logSystem("Go where? (north, south, east, west, up, down, forward, back)");
       } else {
         handleGo(rest[0]);
       }
