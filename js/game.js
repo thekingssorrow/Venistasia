@@ -48,6 +48,150 @@ function roll(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function pickLine(arr) {
+  return arr[roll(0, arr.length - 1)];
+}
+
+// =========================
+// Combat flavor text
+// =========================
+
+const combatFlavor = {
+  player: {
+    normal: {
+      beast: [
+        "You hack into the {name}, fur and flesh tearing under your swing.",
+        "Your blade bites into the {name}, opening a ragged line of red.",
+        "You slam your weapon into the {name}'s side, feeling its body buckle.",
+        "You slash across the {name}, scattering dark hair and droplets of blood.",
+        "You drive your weapon into the {name}'s shoulder, wrenching it free with effort.",
+        "Your strike sends the {name} skidding across the stone, claws scraping for purchase.",
+        "You catch the {name} mid-lunge and knock it sideways with a brutal blow.",
+        "You stab low, skewering the {name}'s belly before yanking your weapon back."
+      ],
+      humanoid: [
+        "You smash your weapon into the {name}'s ribs, feeling something crack under the impact.",
+        "Your swing tears through cloth and flesh as the {name} staggers back, clutching the wound.",
+        "You drive your blade into the {name}'s side, hot blood soaking your hands.",
+        "Your strike splits skin and muscle; the {name} lets out a sharp, ugly sound.",
+        "You catch the {name} off-balance and slam your weapon into their chest.",
+        "Your blow crashes against bone; the {name} grunts as the impact steals their breath.",
+        "You rake your weapon across the {name}'s arm, leaving a deep, leaking gash.",
+        "You ram your shoulder into the {name} as you cut, sending them stumbling through their own blood."
+      ],
+      caster: [
+        "You cut through trailing cloth and flesh as the {name} scrambles to finish a spell.",
+        "Your weapon bites into the {name}'s side, scattering ash-stained fabric and blood.",
+        "You slam into the {name}, snapping their focus along with something in their chest.",
+        "You carve a line across the {name}'s back as they try to retreat, their chant breaking into a scream.",
+        "Your strike hammers into the {name}'s ribs, knocking loose a wheezing breath and a spray of red.",
+        "You hack through dangling charms and flesh; the {name}'s hands shake, blood dripping from their fingers.",
+        "You drive your blade into the {name}'s shoulder; the smell of singed cloth and blood mingles as their spell fizzles out.",
+        "Your attack crashes into the {name}'s gut, folding them in half around the wound."
+      ]
+    },
+    crit: {
+      beast: [
+        "Your swing connects with the {name}'s neck; bone shears and the head lolls at a wrong angle. CRITICAL HIT.",
+        "You bring your weapon down and split the {name}'s skull, bone and brain matter cracking open. CRITICAL HIT.",
+        "You carve straight through the {name}'s foreleg; it hits the ground shrieking, stump spraying blood. CRITICAL HIT.",
+        "Your blade drives into the {name}'s eye and out the other side. It jerks once and hangs limp. CRITICAL HIT.",
+        "You slam the {name} into the stone and feel its spine snap under your weight. CRITICAL HIT.",
+        "Your strike opens the {name} from jaw to chest; teeth and tongue spill out with gore. CRITICAL HIT.",
+        "You crush the {name}'s skull under your boot after the blow lands, bone popping wetly. CRITICAL HIT.",
+        "You tear half the {name}'s face away with a brutal swing; it sprays the wall and collapses twitching. CRITICAL HIT."
+      ],
+      humanoid: [
+        "Your weapon caves in the {name}'s skull with a sickening crunch. Blood and bone spray across the stone. CRITICAL HIT.",
+        "You drive your blade up beneath the {name}'s jaw and out through an eye. Their body spasms, then slackens. CRITICAL HIT.",
+        "Your strike severs the {name}'s arm at the shoulder; it spins away, fingers still clawing at nothing. CRITICAL HIT.",
+        "You smash the {name}'s knee sideways, bone tearing through skin as they drop screaming. CRITICAL HIT.",
+        "Your blow rips across the {name}'s throat; a hot, pulsing spray coats your hands as their voice gurgles out. CRITICAL HIT.",
+        "You ram your weapon deep into the {name}'s chest and feel ribs crack and heart give way. CRITICAL HIT.",
+        "Your swing takes half the {name}'s face with it; teeth, blood, and fragments of bone scatter the ground. CRITICAL HIT.",
+        "You twist the blade as you pull it from the {name}'s gut, dragging out loops of slick, steaming entrails. CRITICAL HIT."
+      ],
+      caster: [
+        "You drive your weapon straight through the {name}'s chest, snuffing their chant mid-syllable. Blood pours down your hands. CRITICAL HIT.",
+        "Your strike shears off the {name}'s casting hand at the wrist; fingers and rings hit the floor in a bloody spray. CRITICAL HIT.",
+        "You carve into the {name}'s face, blinding one eye and leaving the other wide and blood-fogged. CRITICAL HIT.",
+        "Your swing smashes the back of the {name}'s skull; they crumple, blood and grey matter soaking their robes. CRITICAL HIT.",
+        "You bury your blade in the {name}'s spine; their legs go slack as they collapse like a cut puppet. CRITICAL HIT.",
+        "Your attack opens the {name}'s abdomen; organs bulge and spill as they clutch at themselves in disbelief. CRITICAL HIT.",
+        "You slam them against the wall and drive your weapon through their throat, pinning them there as they gurgle out. CRITICAL HIT.",
+        "You slice through both of the {name}'s eyes in a single sweep; they scream, stumbling in circles as blood pours down their cheeks. CRITICAL HIT."
+      ]
+    }
+  },
+
+  enemy: {
+    normal: {
+      beast: [
+        "The {name} sinks its teeth into your arm, ripping skin and muscle loose.",
+        "The {name} rakes claws across your side, leaving burning furrows of torn flesh.",
+        "The {name} slams into your legs, its teeth snapping at exposed skin.",
+        "The {name} bites deep into your calf and shakes, tearing a chunk free.",
+        "The {name} scrabbles up your body, claws shredding cloth and carving bloody lines.",
+        "The {name} latches onto your hand and gnaws until you wrench it free, leaving skin hanging.",
+        "The {name} darts in and snaps at your ribs, leaving a deep, purple-tinged bruise that throbs with every breath.",
+        "The {name} rips a mouthful of flesh from your forearm, hot blood running to your fingertips."
+      ],
+      humanoid: [
+        "The {name}'s weapon crunches into your ribs, stealing your breath in a flash of pain.",
+        "The {name} drives a blade across your chest, cutting a wide bloody groove.",
+        "The {name} cracks you across the jaw; you taste iron as blood fills your mouth.",
+        "The {name}'s strike sinks into your shoulder, leaving the arm numb and wet with blood.",
+        "The {name} slams a boot into your knee, sending agony lancing up your leg.",
+        "The {name} drags steel across your back as you move, carving a long, stinging wound.",
+        "The {name}'s weapon punches into your gut and rips sideways, leaving warmth spilling down your front.",
+        "The {name} hooks your ankle and sends you crashing to the floor, pain jolting through bone."
+      ],
+      caster: [
+        "A jagged bolt of force slams into your chest, leaving your ribs aching and skin mottled purple.",
+        "The {name}'s spell burns across your arm, blistering flesh and filling the air with the stink of cooked skin.",
+        "Shards of conjured bone tear into your legs, lodging deep and bleeding freely.",
+        "A wave of crushing pressure clamps around your skull; blood leaks from your nose and ears.",
+        "The {name} hurls a lance of warped light that sears a smoking line through your side.",
+        "Your muscles knot and spasm as the {name}'s curse digs into nerves and bone.",
+        "Black flame licks over your hands, devouring flesh without heat, leaving charred, cracked skin.",
+        "The {name}'s whispered word sends a spike of agony through your spine that leaves you gasping."
+      ]
+    },
+    crit: {
+      beast: [
+        "The {name} latches onto your throat; teeth punch through flesh before you rip it free in a spray of blood. CRITICAL WOUND.",
+        "The {name} tears a mouthful from your face, hot blood pouring into your eye and down your neck. CRITICAL WOUND.",
+        "The {name} clamps down on your wrist and shakes until bone cracks and something inside tears. CRITICAL WOUND.",
+        "The {name} hits your knee from the side; ligaments snap and you collapse into the dirt. CRITICAL WOUND.",
+        "The {name} rips deep into your side and comes away with a chunk of meat; you can feel warmth pouring out. CRITICAL WOUND.",
+        "The {name} drives its teeth into your hand and mangles fingers into useless, shattered shapes. CRITICAL WOUND.",
+        "The {name} catches your throat with hooked claws, leaving three parallel, pulsing lines that spill red. CRITICAL WOUND.",
+        "The {name} bites clean through part of your ear; blood runs hot down your neck as sound rings and swims. CRITICAL WOUND."
+      ],
+      humanoid: [
+        "The {name}'s weapon crushes into your skull; light explodes behind your eyes as blood runs into your vision. CRITICAL WOUND.",
+        "The {name} drives steel deep into your chest; your breath comes shallow and wet. CRITICAL WOUND.",
+        "The {name} smashes your knee sideways; bone grinds and you nearly go down under your own weight. CRITICAL WOUND.",
+        "The {name}'s blade opens your throat in a wide, searing line; you clamp a hand over it on instinct. CRITICAL WOUND.",
+        "The {name} drives a weapon into your gut and twists; white-hot pain floods your body. CRITICAL WOUND.",
+        "The {name} smashes the back of your head; you see nothing but smeared shapes and swimming light. CRITICAL WOUND.",
+        "The {name}'s strike mangles your forearm; bone shows whitely through shredded flesh. CRITICAL WOUND.",
+        "The {name} hooks your jaw with their weapon, nearly tearing it loose; teeth scatter across the ground. CRITICAL WOUND."
+      ],
+      caster: [
+        "The {name}'s spell erupts inside your chest; you feel something tear and burn at the same time. CRITICAL WOUND.",
+        "A lance of warped light punches through your shoulder, leaving a smoking, ragged hole. CRITICAL WOUND.",
+        "The {name} crushes your lungs with invisible force; each breath is a desperate, shallow scrape. CRITICAL WOUND.",
+        "Your skin splits in long, bloody lines as the {name}'s curse digs into your nerves and pulls them apart. CRITICAL WOUND.",
+        "The {name}'s hex rots flesh along your side in seconds; skin blackens and sloughs away. CRITICAL WOUND.",
+        "A blast of concussive force snaps your head back; you hear the crunch of something giving way in your neck. CRITICAL WOUND.",
+        "The {name}'s magic blinds one eye; blood and milky fluid leak down your cheek as your vision shrinks. CRITICAL WOUND.",
+        "Fire that burns without heat crawls up your arm, eating flesh to bone before guttering out. CRITICAL WOUND."
+      ]
+    }
+  }
+};
+
 // =========================
 // DOM references (filled on DOMContentLoaded)
 // =========================
@@ -162,14 +306,15 @@ const enemyTemplates = {
   dawnspire_rat: {
     id: "dawnspire_rat",
     name: "Starved Tunnel-Rat",
+    type: "beast",
     maxHp: 8,
     atkMin: 1,
     atkMax: 3,
     xpReward: 12,
     description:
-      "A hairless, oversized rat with milky eyes and too many teeth. It skitters in tight circles, desperate and hungry.",
+      "A hairless, skeletal rat with patches of scabby flesh and a jaw that hangs too wide. Its ribs jut like knives. It reeks of old blood and hunger.",
   },
-  // You can add more enemies later here.
+  // Future: add humanoid / caster enemies here with type: "humanoid" / "caster"
 };
 
 function createEnemyInstance(enemyId) {
@@ -178,6 +323,7 @@ function createEnemyInstance(enemyId) {
   return {
     id: tmpl.id,
     name: tmpl.name,
+    type: tmpl.type || "beast",
     maxHp: tmpl.maxHp,
     hp: tmpl.maxHp,
     atkMin: tmpl.atkMin,
@@ -217,10 +363,17 @@ function endCombat() {
 }
 
 function handlePlayerDeath() {
-  logSystem(
-    "Your vision narrows and fades as you collapse. Whatever waits in the depths will have to feed on someone else... for now."
-  );
-  // For now we just auto-reset to make testing easier
+  const deathDescriptions = [
+    "Your legs buckle. The world tilts. Warm blood pools beneath you as the cold earth drinks the last of your strength.",
+    "You collapse, vision swimming. Your breath rattles in your chest before fading into the dark.",
+    "Pain flashes white, then nothing. Your body hits the ground with a hollow thud as everything drains away.",
+    "You fall to your knees, fingers twitching uselessly. The world narrows to a pinprick of cruel light before swallowing you whole."
+  ];
+
+  logSystem(pickLine(deathDescriptions));
+  logSystem("Death claims you brutally in the dark halls of the Dawnspire...");
+
+  // Auto wipe to make testing easier
   handleReset();
 }
 
@@ -246,27 +399,60 @@ function handleAttack() {
   }
 
   const enemy = gameState.combat.enemy;
+  const enemyType = enemy.type || "beast";
+
   const weapon = gameState.inventory.find((i) => i.type === "weapon");
   const weaponAtk = weapon ? weapon.atk : 0;
 
-  const dmg = roll(1 + weaponAtk, 4 + weaponAtk);
+  const critChance = 20; // 20% crit chance
+  const isCrit = roll(1, 100) <= critChance;
+
+  let dmg = roll(1 + weaponAtk, 4 + weaponAtk);
+  if (isCrit) {
+    dmg = dmg * 2 + 1;
+  }
+
   enemy.hp -= dmg;
-  logSystem(`You strike the ${enemy.name} for ${dmg} damage.`);
+
+  const playerBucket = isCrit
+    ? (combatFlavor.player.crit[enemyType] || combatFlavor.player.crit.beast)
+    : (combatFlavor.player.normal[enemyType] || combatFlavor.player.normal.beast);
+
+  const playerLine = pickLine(playerBucket).replace("{name}", enemy.name);
+  logSystem(`${playerLine} (${dmg} damage)`);
 
   if (enemy.hp <= 0) {
-    logSystem(`The ${enemy.name} collapses. The echo of the struggle fades.`);
+    const deathLines = [
+      `The ${enemy.name} hits the ground in a broken heap, blood pooling out to meet your boots.`,
+      `The ${enemy.name} twitches once, then lies open and still among its own remains.`,
+      `Whatever held the ${enemy.name} together gives out; it slumps into a ruin of meat and bone.`,
+      `The ${enemy.name}'s last breath rattles out in a wet gurgle as its body sags into the dirt.`
+    ];
+    logSystem(pickLine(deathLines));
     const xp = enemy.xpReward || 0;
-    if (xp > 0) {
-      gainXp(xp);
-    }
+    if (xp > 0) gainXp(xp);
     endCombat();
     return;
   }
 
-  // Enemy turn
-  const enemyDmg = roll(enemy.atkMin, enemy.atkMax);
+  // Enemy counterattack
+  const enemyCritChance = 15;
+  const enemyCrit = roll(1, 100) <= enemyCritChance;
+
+  const enemyBucket = enemyCrit
+    ? (combatFlavor.enemy.crit[enemyType] || combatFlavor.enemy.crit.beast)
+    : (combatFlavor.enemy.normal[enemyType] || combatFlavor.enemy.normal.beast);
+
+  let enemyDmg = roll(enemy.atkMin, enemy.atkMax);
+  if (enemyCrit) {
+    enemyDmg = enemyDmg * 2;
+  }
+
   gameState.player.hp -= enemyDmg;
-  logSystem(`The ${enemy.name} claws at you for ${enemyDmg} damage.`);
+
+  const enemyLine = pickLine(enemyBucket).replace("{name}", enemy.name);
+  logSystem(`${enemyLine} (${enemyDmg} damage)`);
+
   if (gameState.player.hp <= 0) {
     gameState.player.hp = 0;
     updateStatusBar();
@@ -276,7 +462,7 @@ function handleAttack() {
 
   updateStatusBar();
   logSystem(
-    `You have ${gameState.player.hp}/${gameState.player.maxHp} HP remaining.`
+    `Blood slicks your skin. HP: ${gameState.player.hp}/${gameState.player.maxHp}.`
   );
 }
 
@@ -298,9 +484,24 @@ function handleRun() {
     // Failed escape
     logSystem("You try to flee, but the enemy cuts you off!");
     const enemy = gameState.combat.enemy;
-    const enemyDmg = roll(enemy.atkMin, enemy.atkMax);
+
+    const enemyType = enemy.type || "beast";
+    const enemyCritChance = 15;
+    const enemyCrit = roll(1, 100) <= enemyCritChance;
+    const enemyBucket = enemyCrit
+      ? (combatFlavor.enemy.crit[enemyType] || combatFlavor.enemy.crit.beast)
+      : (combatFlavor.enemy.normal[enemyType] || combatFlavor.enemy.normal.beast);
+
+    let enemyDmg = roll(enemy.atkMin, enemy.atkMax);
+    if (enemyCrit) {
+      enemyDmg = enemyDmg * 2;
+    }
+
     gameState.player.hp -= enemyDmg;
-    logSystem(`The ${enemy.name} punishes your retreat for ${enemyDmg} damage.`);
+
+    const enemyLine = pickLine(enemyBucket).replace("{name}", enemy.name);
+    logSystem(`${enemyLine} (${enemyDmg} damage)`);
+
     if (gameState.player.hp <= 0) {
       gameState.player.hp = 0;
       updateStatusBar();
