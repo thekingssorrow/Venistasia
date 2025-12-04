@@ -23,6 +23,7 @@ const gameState = {
     // firstDungeonFightDone: false,
     // stairsCollapsed: false,
     // gotLanternBadge: false,
+    // collapsedStairTrapDone: false,
   },
   combat: {
     inCombat: false,
@@ -291,7 +292,7 @@ const locations = {
     ].join(" "),
   },
 
-  // Room 1 – Broken Ring Descent (already planned)
+  // Room 1 – Broken Ring Descent
   broken_ring_descent: {
     name: "Dawnspire – Broken Ring Descent",
     description: [
@@ -317,6 +318,15 @@ const locations = {
       "Above, you can just make out where the stair used to continue—a jagged plug of shattered blocks and packed debris. Below, the stairs continue into a deeper dark, the air colder and somehow hungrier the further down you look."
     ].join(" "),
   },
+
+  // Room 4 – Rat-gnawed Vestibule
+  rat_gnawed_vestibule: {
+    name: "Dawnspire – Rat-gnawed Vestibule",
+    description: [
+      "The stair spills into a low, wedge-shaped chamber where the stone has been gnawed and worried at the edges, as if a hundred sets of teeth tried to chew their way out of the walls.",
+      "Trailing scraps of old cloth and leather hang from rusted hooks, and the floor is slick with a thin film of something that smells like old fur, old blood, and wet stone."
+    ].join(" "),
+  },
 };
 
 // helper: stairs collapse message
@@ -340,6 +350,40 @@ function maybeGrantLanternBadge() {
     "Half-buried in the rubble, your fingers close on something cold and worked. You pry free a small metal badge stamped with a stylized lantern—tarnished, but unmistakably deliberate. A Lantern Knight’s badge, abandoned here and left to watch the dark alone."
   );
   logSystem("You take the Lantern Knight’s Badge.");
+}
+
+// helper: Room 3 loose-stone trap
+function runCollapsedStairTrap() {
+  // Only trigger once
+  if (gameState.flags.collapsedStairTrapDone) return true;
+
+  gameState.flags.collapsedStairTrapDone = true;
+
+  logSystem(
+    "Your boot rolls on a loose stone. The narrow stair lurches under you as a chunk of the ceiling breaks free."
+  );
+
+  const dmg = roll(1, 3); // small chip damage
+  const p = gameState.player;
+
+  if (dmg <= 0) {
+    logSystem("Dust and pebbles shower over you, but the worst of it misses.");
+    return true;
+  }
+
+  p.hp -= dmg;
+
+  if (p.hp <= 0) {
+    p.hp = 0;
+    updateStatusBar();
+    logSystem(`The falling rock slams into you for ${dmg} damage.`);
+    handlePlayerDeath();
+    return false; // you died; caller should stop
+  }
+
+  updateStatusBar();
+  logSystem(`The falling stone grazes you for ${dmg} damage. HP: ${p.hp}/${p.maxHp}.`);
+  return true;
 }
 
 function describeLocation() {
@@ -871,9 +915,17 @@ function handleGo(direction) {
       return;
     }
 
-    if (direction === "down") {
-      // placeholder for deeper floors
-      logSystem("The stairs descend further into shadow, but that path isn’t ready yet.");
+    if (direction === "down" || direction === "forward") {
+      // First time heading deeper, loose stone trap may hit.
+      const alive = runCollapsedStairTrap();
+      if (!alive) {
+        // Player died in the trap; movement should not continue.
+        return;
+      }
+
+      gameState.location = "rat_gnawed_vestibule";
+      logSystem("Shaking off the sting of falling stone, you press deeper down the warped stair into the dark.");
+      describeLocation();
       return;
     }
   }
