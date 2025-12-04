@@ -429,8 +429,25 @@ function startCombat(enemyId) {
 
   gameState.combat.inCombat = true;
   gameState.combat.enemy = enemy;
-  gameState.combat.previousLocation = gameState.location;
+  // NOTE: previousLocation is now set by the code that *starts* the fight (e.g., movement),
+  // so we do NOT touch gameState.combat.previousLocation here.
   gameState.combat.intent = null;
+
+  const intro = [
+    "The air tightens, the space around you suddenly too small, too close. Something shifts just beyond the edge of your vision—a scrape of claw on stone, a wet breath pulled through broken teeth.",
+    `${enemy.name} drags itself out of the dark, all twitching hunger and bad intent, drawn by the sound of your heartbeat and the sweat on your skin.`,
+    "",
+    enemy.description,
+    "",
+    "Steel, teeth, or worse—something here is going to break. Type 'attack' to stand your ground, 'block' to brace, or 'run' if your courage falters."
+  ].join("\n");
+
+  logSystem(intro);
+
+  // First intent
+  gameState.combat.intent = chooseEnemyIntent(enemy);
+  telegraphEnemyIntent(enemy, gameState.combat.intent);
+}
 
   const intro = [
     "The air tightens, the space around you suddenly too small, too close. Something shifts just beyond the edge of your vision—a scrape of claw on stone, a wet breath pulled through broken teeth.",
@@ -672,10 +689,6 @@ function handleRest() {
   logSystem(`Your strength crawls back. HP fully restored: ${p.hp}/${p.maxHp}.`);
 }
 
-// =========================
-// Movement
-// =========================
-
 function handleGo(direction) {
   // no moving while in combat
   if (gameState.combat.inCombat) {
@@ -701,14 +714,20 @@ function handleGo(direction) {
   }
 
   if (loc === "dark_forest_edge" && direction === "north") {
+    // You are moving from the forest edge into the dungeon entrance.
+    // If a fight starts here, running should take you back to THIS room.
+    const fromLocation = gameState.location;
+
     gameState.location = "dungeon_entrance";
     logSystem(
       "You follow the path to the quake-torn clearing. The broken stone ring looms ahead as you approach the Dawnspire Below..."
     );
     describeLocation();
+
     // First encounter
     if (!gameState.flags.firstDungeonFightDone) {
       gameState.flags.firstDungeonFightDone = true;
+      gameState.combat.previousLocation = fromLocation; // <- where 'run' will send you
       startCombat("dawnspire_rat");
     }
     return;
@@ -723,6 +742,7 @@ function handleGo(direction) {
 
   logSystem("You can't go that way.");
 }
+
 
 // =========================
 // Help / name / reset
