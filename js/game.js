@@ -19,7 +19,6 @@ const gameState = {
   ],
   location: "village_square",
   flags: {
-    // we'll add flags as needed
     // firstDungeonFightDone: false,
     // stairsCollapsed: false,
     // gotLanternBadge: false,
@@ -28,6 +27,8 @@ const gameState = {
     // vestibuleRatsRemaining: 0,
     // vestibuleCombatDone: false,
     // gotVestibuleLoot: false,
+    // gnawedStoreroomTrapDone: false,
+    // gotStoreroomBuckler: false,
   },
   combat: {
     inCombat: false,
@@ -344,6 +345,15 @@ const locations = {
       "Chewed-open tunnels vein the lower masonry. The remains of an old camp slump against one wall—a rotted bedroll fused to the floor with damp and mold, a snapped spear haft pinned beneath it, and the scattered ghosts of a pack long since torn apart."
     ].join(" "),
   },
+
+  // Room 5 – Gnawed Storeroom
+  gnawed_storeroom: {
+    name: "Dawnspire – Gnawed Storeroom",
+    description: [
+      "A low arch of bitten stone opens into what was once a storeroom. Shelves have collapsed into rotten heaps, their timbers chewed through and sagging like broken ribs.",
+      "Sacks lie torn open across the floor, spilling long-mummified grain and a carpet of small bones. Every step sets something fragile cracking under your boots."
+    ].join(" "),
+  },
 };
 
 // helper: stairs collapse message
@@ -379,6 +389,14 @@ function handleTrapDeath(trapKey) {
         "The stairwell bucks under your feet as a jagged block drops out of the dark. It hits you full in the face; your neck folds sideways and the world cuts to black mid-breath.",
         "You glance up just in time to see the underside of the falling rock. It meets you like a hammer, driving you bonelessly into the shattered steps.",
         "A coffin-sized stone punches through the ceiling and crushes your shoulder and throat in one grinding impact. The rest of you never gets the chance to understand."
+      ];
+      break;
+    case "gnawed_rats":
+      lines = [
+        "Your boot grinds down into hidden bones. The pile explodes into motion as a hundred tiny bodies erupt up your legs. By the time you remember to scream, your throat is already full of teeth.",
+        "The bone-drift blooms outward in a living tide. Tiny claws and needle teeth find every gap in cloth and flesh at once. You go down under them, swallowed in a single, frantic shriek.",
+        "The floor flexes with something beneath the bones. Then they burst upward in a writhing wave that knocks you flat. You choke on fur and hot copper as they eat all the soft parts first.",
+        "You stagger as the bones shift—and the room erupts. A squealing storm climbs your body, chewing through tendon and throat before your hands can even close around a weapon."
       ];
       break;
     default:
@@ -428,6 +446,35 @@ function runCollapsedStairTrap() {
   return true;
 }
 
+// helper: Room 5 rat-swarm trap
+function runGnawedStoreroomTrap() {
+  if (gameState.flags.gnawedStoreroomTrapDone) return true;
+
+  gameState.flags.gnawedStoreroomTrapDone = true;
+
+  logSystem(
+    "Your step sinks into a drift of bones. The whole pile shivers, then erupts as a churning swarm of half-rotten rats pours over your boots."
+  );
+
+  const dmg = roll(1, 3); // minor chip damage
+  const p = gameState.player;
+
+  p.hp -= dmg;
+
+  if (p.hp <= 0) {
+    p.hp = 0;
+    updateStatusBar();
+    handleTrapDeath("gnawed_rats");
+    return false;
+  }
+
+  updateStatusBar();
+  logSystem(
+    `They tear at your ankles and calves before scattering back into the dark. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
+  );
+  return true;
+}
+
 // helper: vestibule loot (after fight)
 function maybeGrantVestibuleLoot() {
   if (gameState.flags.gotVestibuleLoot) return;
@@ -449,6 +496,30 @@ function maybeGrantVestibuleLoot() {
     "Picking through the shredded bedroll and the ruins of an old pack, you turn up a half-stale travel ration and a strip of dirty bandage stiff with old blood."
   );
   logSystem("You gain: Travel Ration, Dirty Bandage.");
+}
+
+// helper: storeroom loot (Rust-Flecked Buckler)
+function maybeGrantStoreroomBuckler() {
+  if (gameState.flags.gotStoreroomBuckler) return;
+  if (!gameState.flags.gnawedStoreroomTrapDone) return; // only after disturbing the bones
+
+  gameState.flags.gotStoreroomBuckler = true;
+
+  const buckler = {
+    id: "rust-buckler",
+    name: "Rust-Flecked Buckler",
+    type: "shield",
+  };
+
+  gameState.inventory.push(buckler);
+
+  logSystem(
+    "Kicking aside scattered bones, you spot the curve of metal under a fallen shelf. You drag free a small buckler, its surface pitted with rust and old scratches."
+  );
+  logSystem(
+    "Whatever carried it last died here, but the iron still feels solid in your grip. Against beasts, it might just turn a killing blow into a glancing one."
+  );
+  logSystem("You gain: Rust-Flecked Buckler.");
 }
 
 // helper: start the vestibule multi-rat fight
@@ -551,6 +622,14 @@ function describeLocation() {
     !gameState.combat.inCombat
   ) {
     maybeGrantVestibuleLoot();
+  }
+
+  // special: storeroom loot (only when not currently in combat)
+  if (
+    gameState.location === "gnawed_storeroom" &&
+    !gameState.combat.inCombat
+  ) {
+    maybeGrantStoreroomBuckler();
   }
 }
 
@@ -768,6 +847,14 @@ function enemyTurn(blocking = false) {
   if (blocking) {
     const blockMult = intent.blockMult != null ? intent.blockMult : 0.4;
     enemyDmg = Math.floor(enemyDmg * blockMult);
+  }
+
+  // Buckler bonus vs beasts while blocking
+  if (blocking && enemyType === "beast" && enemyDmg > 0) {
+    const hasBuckler = gameState.inventory.some((i) => i.id === "rust-buckler");
+    if (hasBuckler) {
+      enemyDmg = Math.max(0, enemyDmg - 1);
+    }
   }
 
   const enemyBucket = enemyCrit
@@ -1131,11 +1218,15 @@ function handleGo(direction) {
       return;
     }
 
-    // East -> Gnawed Storeroom (Room 5 placeholder)
+    // East -> Gnawed Storeroom (Room 5)
     if (direction === "east") {
+      gameState.location = "gnawed_storeroom";
       logSystem(
-        "You pick your way toward a narrow arch choked with bite-marks and old claw-gouges. Beyond, a cramped storeroom waits—but that part of the Dawnspire isn't ready yet."
+        "You push through a low, tooth-scored arch, ducking past hanging splinters of stone into a cramped side chamber."
       );
+      const alive = runGnawedStoreroomTrap();
+      if (!alive) return;
+      describeLocation();
       return;
     }
 
@@ -1144,6 +1235,18 @@ function handleGo(direction) {
       logSystem(
         "You study a tunnel that climbs into a broader hall, faint traces of old lantern brackets jutting from the stone. For now, the path feels unfinished, more idea than place."
       );
+      return;
+    }
+  }
+
+  // Room 5 – Gnawed Storeroom logic
+  if (loc === "gnawed_storeroom") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "rat_gnawed_vestibule";
+      logSystem(
+        "You pick your way back through the low arch, leaving the bone-littered storeroom behind."
+      );
+      describeLocation();
       return;
     }
   }
