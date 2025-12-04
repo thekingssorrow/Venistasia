@@ -301,13 +301,32 @@ function handleLook() {
     describeLocation();
   }
 }
-
 function handleInventory() {
   if (gameState.inventory.length === 0) {
     logSystem("Your inventory is empty.");
     return;
   }
-  const lines = gameState.inventory.map((item, i) => `${i + 1}. ${item.name}`);
+
+  // Group items by id (fallback to name if no id)
+  const grouped = new Map();
+
+  for (const item of gameState.inventory) {
+    const key = item.id || item.name;
+    if (!grouped.has(key)) {
+      grouped.set(key, { item, count: 0 });
+    }
+    grouped.get(key).count++;
+  }
+
+  const lines = [];
+  let index = 1;
+
+  for (const { item, count } of grouped.values()) {
+    const label = count > 1 ? `${item.name} (${count})` : item.name;
+    lines.push(`${index}. ${label}`);
+    index++;
+  }
+
   logSystem("You are carrying:\n" + lines.join("\n"));
 }
 
