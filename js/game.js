@@ -263,20 +263,29 @@ function logCommand(text) {
 const locations = {
   village_square: {
     name: "Briar's Edge, Village Square",
-    description:
-      "You stand in the small square of Briar's Edge, a frontier village clinging to the edge of the Shaded Frontier. To the north, the forest waits in a dark line.",
+    description: [
+      "You stand in the cramped heart of Briar's Edge, a frontier village nailed together from weather-beaten timber and old promises. A crooked well sits at the center, its stones slick with moss and the stains of years of use. Smoke drifts from low chimneys, carrying the sour smell of thin stew and overboiled vegetables. Faded posters promising fame and fortune at the 'Dawnspire Below' flap weakly on a message board, their edges curled and greasy from too many hopeful hands.",
+      "Beyond the last sagging rooftops to the north, the Shaded Frontier begins in a hard, dark line of trees. Behind you, the village pretends not to watch you leave."
+    ].join(" "),
   },
+
   dark_forest_edge: {
     name: "Forest Edge",
-    description:
-      "The trees rise like a wall of black timber. A narrow path pushes north between the trunks, toward the quake-torn ground and the exposed ruin. The village lies to the south.",
+    description: [
+      "The road from Briar's Edge dissolves into churned mud and exposed roots as the forest takes over, its trees packed tight like the bars of a cage. The air here is colder, heavy with the stink of wet earth, old leaves, and the faint metallic tang of something that bled and never quite washed away. Branches knit overhead, letting in only thin, pale ribbons of light that barely reach the ground.",
+      "Every sound seems too loud—your boots in the dirt, your breath, the creak of leather. Somewhere deeper in, something moves just out of sight, and the path north twists into shadow, toward the place the villagers now call the Dawnspire Below. To the south, the village waits like a memory you can still turn back to."
+    ].join(" "),
   },
+
   dungeon_entrance: {
     name: "Dawnspire – Broken Ring",
-    description:
-      "Shattered stone forms a ring around a yawning hole in the earth. Rough steps descend into cold darkness. The air smells of dust, stone, and something that has waited a long time.",
+    description: [
+      "The trees fall away into a raw wound in the earth where the ground has split and slumped, exposing a ring of ancient stone half-swallowed by dirt and roots. Weathered pillars lean at sick angles around a central pit where rough steps spiral downward into a throat of cold, unmoving darkness. The air that seeps up from below smells of stale stone, rust, and something older—like the inside of a sealed tomb finally given a mouth.",
+      "Faint scratches and boot-scuffs around the lip of the ring speak of others who came here before you. None of their voices carry back up the stairs."
+    ].join(" "),
   },
 };
+
 
 function describeLocation() {
   const loc = locations[gameState.location];
@@ -335,7 +344,6 @@ function handleInventory() {
 // =========================
 
 // Enemy templates
-const enemyTemplates = {
   dawnspire_rat: {
     id: "dawnspire_rat",
     name: "Starved Tunnel-Rat",
@@ -344,9 +352,12 @@ const enemyTemplates = {
     atkMin: 1,
     atkMax: 3,
     xpReward: 12,
-    description:
-      "A hairless, skeletal rat with patches of scabby flesh and a jaw that hangs too wide. Its ribs jut like knives. It reeks of old blood and hunger.",
+    description: [
+      "A hairless, skeletal rat drags itself into view, its skin stretched thin and shiny over jutting bones. Patches of scabbed flesh flake away as it moves, revealing raw, weeping meat beneath. Its jaw hangs too wide, teeth long and yellowed, clicking together in a feverish rhythm as thin ropes of saliva drip to the stone.",
+      "Its milky eyes roll in their sockets, unfocused but hungry, and every ragged breath rattles through a chest that looks one good kick away from collapsing. Whatever scraps of meat it has found down here were never enough."
+    ].join(" "),
   },
+
   // Future: add humanoid / caster enemies here with type: "humanoid" / "caster"
 };
 
@@ -377,16 +388,16 @@ function startCombat(enemyId) {
   gameState.combat.enemy = enemy;
   gameState.combat.previousLocation = gameState.location;
 
-  logSystem(
-    [
-      "Something moves in the dark.",
-      `${enemy.name} emerges from the shadows!`,
-      "",
-      enemy.description,
-      "",
-      "Type 'attack' to fight or 'run' to try to flee."
-    ].join("\n")
-  );
+  const intro = [
+    "The air tightens, the space around you suddenly too small, too close. Something shifts just beyond the edge of your vision—a scrape of claw on stone, a wet breath pulled through broken teeth.",
+    `${enemy.name} drags itself out of the dark, all twitching hunger and bad intent, drawn by the sound of your heartbeat and the sweat on your skin.`,
+    "",
+    enemy.description,
+    "",
+    "Steel, teeth, or worse—something here is going to break. Type 'attack' to stand your ground or 'run' if your courage falters."
+  ].join("\n");
+
+  logSystem(intro);
 }
 
 function endCombat() {
