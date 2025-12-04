@@ -140,8 +140,8 @@ const combatFlavor = {
         "You drive your weapon straight through the {name}'s chest, snuffing their chant mid-syllable. Blood pours down your hands. CRITICAL HIT.",
         "Your strike shears off the {name}'s casting hand at the wrist; fingers and rings hit the floor in a bloody spray. CRITICAL HIT.",
         "You carve into the {name}'s face, blinding one eye and leaving the other wide and blood-fogged. CRITICAL HIT.",
-        "Your swing smashes the back of the {name}'s skull; they crumple, blood and grey matter soaking their robes. CRITICAL HIT.",
-        "You bury your blade in the {name}'s spine; their legs go slack as they collapse like a cut puppet. CRITICAL HIT.",
+        "Your swing smashes the {name}'s back; they crumple, blood and grey matter soaking their robes. CRITICAL HIT.",
+        "You bury your blade into the {name}'s spine; their legs go slack as they collapse like a cut puppet. CRITICAL HIT.",
         "Your attack opens the {name}'s abdomen; organs bulge and spill as they clutch at themselves in disbelief. CRITICAL HIT.",
         "You slam them against the wall and drive your weapon through their throat, pinning them there as they gurgle out. CRITICAL HIT.",
         "You slice through both of the {name}'s eyes in a single sweep; they scream, stumbling in circles as blood pours down their cheeks. CRITICAL HIT."
@@ -356,6 +356,31 @@ function maybeGrantLanternBadge() {
   logSystem("You take the Lantern Knight’s Badge.");
 }
 
+// ===== Trap death helper (for brutal, sudden trap deaths) =====
+function handleTrapDeath(trapKey) {
+  let lines;
+  switch (trapKey) {
+    case "collapsed_stair_rock":
+      lines = [
+        "Stone shears free above you with no warning. Something the size of your chest slams into your skull; there’s a crack, a flash, and then nothing at all.",
+        "The stairwell bucks under your feet as a jagged block drops out of the dark. It hits you full in the face; your neck folds sideways and the world cuts to black mid-breath.",
+        "You glance up just in time to see the underside of the falling rock. It meets you like a hammer, driving you bonelessly into the shattered steps.",
+        "A coffin-sized stone punches through the ceiling and crushes your shoulder and throat in one grinding impact. The rest of you never gets the chance to understand."
+      ];
+      break;
+    default:
+      lines = [
+        "Something in the dark moves, and your story ends faster than your mind can catch up.",
+        "There’s no warning—just impact, and then the feeling of the world letting go of you."
+      ];
+      break;
+  }
+
+  logSystem(pickLine(lines));
+  logSystem("The Dawnspire doesn’t care how you die. It only cares that you stay.");
+  handleReset();
+}
+
 // helper: Room 3 loose-stone trap
 function runCollapsedStairTrap() {
   // Only trigger once
@@ -380,8 +405,8 @@ function runCollapsedStairTrap() {
   if (p.hp <= 0) {
     p.hp = 0;
     updateStatusBar();
-    logSystem(`The falling rock slams into you for ${dmg} damage.`);
-    handlePlayerDeath();
+    // Custom trap death text instead of generic combat death
+    handleTrapDeath("collapsed_stair_rock");
     return false; // you died; caller should stop
   }
 
@@ -1065,7 +1090,7 @@ function handleHelp() {
       "  help               - show this help",
       "  look               - describe your surroundings or current foe",
       "  inventory (or inv) - show your items",
-      "  go <direction>     - move (e.g., 'go north', 'go down', 'go forward')",
+      "  go <direction>     - move (e.g., 'go north', 'go down', 'go forward', 'go back')",
       "  name <your name>   - set your name",
       "  attack             - attack the enemy in combat",
       "  block              - brace to blunt the enemy's next attack",
