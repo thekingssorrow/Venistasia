@@ -11,6 +11,10 @@ const gameState = {
     xpToLevel: 100,
     hp: 20,
     maxHp: 20,
+    equipment: {
+      weaponId: null,
+      shieldId: null,
+    },
   },
   inventory: [
     { id: "rusty-sword", name: "Rusty Sword", type: "weapon", atk: 1 },
@@ -89,6 +93,24 @@ function consumeItemByIndex(idx) {
   if (idx < 0 || idx >= gameState.inventory.length) return null;
   const [item] = gameState.inventory.splice(idx, 1);
   return item;
+}
+
+// Equipment helpers
+function ensureEquipment() {
+  if (!gameState.player.equipment) {
+    gameState.player.equipment = { weaponId: null, shieldId: null };
+  }
+}
+
+function getEquippedWeapon() {
+  ensureEquipment();
+  const eqId = gameState.player.equipment.weaponId;
+  if (eqId) {
+    const found = gameState.inventory.find((i) => i.id === eqId);
+    if (found) return found;
+  }
+  // fallback: first weapon in inventory
+  return gameState.inventory.find((i) => i.type === "weapon") || null;
 }
 
 // =========================
@@ -356,6 +378,31 @@ const locations = {
   },
 };
 
+// Exits helper text for each location
+const exitsByLocation = {
+  village_square:
+    "Obvious exits: north – toward the Shaded Frontier and the Dawnspire rumors.",
+  dark_forest_edge:
+    "Obvious exits: south – back to Briar's Edge; north – to the quake-torn clearing and the stone ring.",
+  dungeon_entrance:
+    "Obvious exits: south – back to the forest edge; down – into the Broken Ring Descent.",
+  broken_ring_descent:
+    "Obvious exits: up – back to the stone ring; down – deeper to the cracked landing.",
+  cracked_landing:
+    "Obvious exits: up – back toward the Broken Ring Descent; down/forward – into the warped stairwell below.",
+  collapsed_stairwell:
+    "Obvious exits: up – back to the cracked landing; down/forward – into the rat-gnawed chamber.",
+  rat_gnawed_vestibule:
+    "Obvious exits: west/back – toward the twisted stairwell; east – into a gnawed storeroom; north – toward a broader hall of old lantern brackets.",
+  gnawed_storeroom:
+    "Obvious exits: west/back – through the low arch into the rat-gnawed vestibule.",
+};
+
+function printExitsForLocation(id) {
+  const text = exitsByLocation[id];
+  if (text) logSystem(text);
+}
+
 // helper: stairs collapse message
 function reportStairsCollapsed() {
   logSystem("Stone and dust fill the stairwell above. Whatever daylight once lived up there is gone.");
@@ -520,6 +567,13 @@ function maybeGrantStoreroomBuckler() {
     "Whatever carried it last died here, but the iron still feels solid in your grip. Against beasts, it might just turn a killing blow into a glancing one."
   );
   logSystem("You gain: Rust-Flecked Buckler.");
+
+  // Auto-equip if you aren't using any shield yet
+  ensureEquipment();
+  if (!gameState.player.equipment.shieldId) {
+    gameState.player.equipment.shieldId = "rust-buckler";
+    logSystem("You strap the buckler onto your forearm. It feels clumsy, but better than empty air.");
+  }
 }
 
 // helper: start the vestibule multi-rat fight
@@ -545,7 +599,7 @@ function startVestibuleFight() {
 }
 
 // =========================
-// Use / bandage system
+// Use / bandage / equip system
 // =========================
 
 function useBandage(inCombat) {
@@ -581,6 +635,41 @@ function useBandage(inCombat) {
   }
 
   return true;
+}
+
+function handleEquip(rawArgs) {
+  const arg = (rawArgs || "").trim().toLowerCase();
+  if (!arg) {
+    logSystem("Equip what? (e.g., 'equip sword' or 'equip buckler')");
+    return;
+  }
+
+  const idx = gameState.inventory.findIndex((item) =>
+    (item.name || "").toLowerCase().includes(arg)
+  );
+  if (idx === -1) {
+    logSystem("You don't seem to be carrying anything like that.");
+    return;
+  }
+
+  const item = gameState.inventory[idx];
+  ensureEquipment();
+
+  if (item.type === "weapon") {
+    gameState.player.equipment.weaponId = item.id;
+    logSystem(
+      `You shift your grip around the ${item.name}, letting its weight settle into something that feels like intent.`
+    );
+  } else if (item.type === "shield") {
+    gameState.player.equipment.shieldId = item.id;
+    logSystem(
+      `You strap the ${item.name} to your forearm. It's not much, but it gives your raised guard somewhere to hide behind.`
+    );
+  } else {
+    logSystem("That doesn't sit right in your hands as a weapon or shield.");
+  }
+
+  updateStatusBar();
 }
 
 function handleUse(rawArgs, { inCombat = false } = {}) {
@@ -631,6 +720,9 @@ function describeLocation() {
   ) {
     maybeGrantStoreroomBuckler();
   }
+
+  // exit hint
+  printExitsForLocation(gameState.location);
 }
 
 function handleLook() {
@@ -851,7 +943,9 @@ function enemyTurn(blocking = false) {
 
   // Buckler bonus vs beasts while blocking
   if (blocking && enemyType === "beast" && enemyDmg > 0) {
-    const hasBuckler = gameState.inventory.some((i) => i.id === "rust-buckler");
+    ensureEquipment();
+    const hasBuckler =
+      gameState.player.equipment.shieldId === "rust-buckler";
     if (hasBuckler) {
       enemyDmg = Math.max(0, enemyDmg - 1);
     }
@@ -909,7 +1003,7 @@ function handleAttack() {
   const enemy = gameState.combat.enemy;
   const enemyType = enemy.type || "beast";
 
-  const weapon = gameState.inventory.find((i) => i.type === "weapon");
+  const weapon = getEquippedWeapon();
   const weaponAtk = weapon ? weapon.atk : 0;
 
   const critChance = 20; // 20% crit chance
@@ -1272,6 +1366,7 @@ function handleHelp() {
       "  run                - attempt to flee from combat",
       "  rest               - consume a ration to fully restore your HP",
       "  use <item>         - use an item (e.g., 'use bandage')",
+      "  equip <item>       - equip a weapon or shield (e.g., 'equip buckler')",
       "  reset              - wipe your progress and restart",
     ].join("\n")
   );
@@ -1328,6 +1423,10 @@ function handleReset() {
     xpToLevel: 100,
     hp: 20,
     maxHp: 20,
+    equipment: {
+      weaponId: null,
+      shieldId: null,
+    },
   };
 
   gameState.inventory = [
@@ -1369,6 +1468,9 @@ function handleCombatCommand(cmd, raw, rest) {
       handleUse(argStr, { inCombat: true });
       break;
     }
+    case "equip":
+      logSystem("You don't have time to fumble with gear while something is trying to open you up.");
+      break;
     case "look":
       handleLook();
       break;
@@ -1439,6 +1541,9 @@ function handleCommand(raw) {
       break;
     case "use":
       handleUse(raw.slice(4).trim(), { inCombat: false });
+      break;
+    case "equip":
+      handleEquip(raw.slice(6).trim());
       break;
     case "reset":
       handleReset();
@@ -1513,6 +1618,7 @@ async function loadGameFromServer() {
 
     if (data && data.state) {
       Object.assign(gameState, data.state);
+      ensureEquipment();
       logSystem("Welcome back. Your adventure has been restored.");
       if (gameState.combat && gameState.combat.inCombat && gameState.combat.enemy) {
         logSystem("You come back to your senses in the middle of a fight!");
@@ -1552,6 +1658,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   gameState.playerId = getOrCreatePlayerId();
+  ensureEquipment();
   updateStatusBar();
 
   formEl.addEventListener("submit", (e) => {
