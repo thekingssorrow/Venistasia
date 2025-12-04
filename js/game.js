@@ -18,9 +18,7 @@ const gameState = {
     { id: "ration", name: "Travel Ration", type: "ration" },
   ],
   location: "village_square",
-  flags: {
-    // dungeonRatDead: true when the rat at the entrance has been killed
-  },
+  flags: {},
   combat: {
     inCombat: false,
     enemy: null,
@@ -287,8 +285,16 @@ const locations = {
       "Faint scratches and boot-scuffs around the lip of the ring speak of others who came here before you. None of their voices carry back up the stairs."
     ].join(" "),
   },
-};
 
+  // NEW: Room 1 – Broken Ring Descent
+  broken_ring_descent: {
+    name: "Dawnspire – Broken Ring Descent",
+    description: [
+      "The spiral stairs descend from the surface, the world above shrinking to a memory of pale light and wind. The walls here are slick with seepage, veins of moisture running down stone that glistens with a faint, unhealthy sheen. Tufts of strange, faintly glowing lichen cling to the mortar lines, smearing cold light across your boots as you brush past.",
+      "Your footsteps echo in the tight shaft, overlapping in a rhythm that sounds almost like someone else is walking just behind you. The air is colder the deeper you go, pressed flat and stale, as if this place has been holding its breath for a very long time."
+    ].join(" "),
+  },
+};
 
 function describeLocation() {
   const loc = locations[gameState.location];
@@ -372,21 +378,21 @@ const enemyIntents = {
     {
       key: "quick",
       damageMult: 1.0,
-      blockMult: 1.0,
+      blockMult: 0.6,
       tell:
         "The {name} drops low, muscles quivering, ready to snap forward in a fast, flesh-tearing lunge."
     },
     {
       key: "heavy",
-      damageMult: 2.0,
-      blockMult: 0.0,
+      damageMult: 1.8,
+      blockMult: 0.3,
       tell:
         "The {name} rears back, whole body coiling as it gathers weight for a bone-cracking slam."
     },
     {
       key: "worry",
-      damageMult: 0.0,
-      blockMult: 2.0,
+      damageMult: 1.3,
+      blockMult: 0.4,
       tell:
         "The {name} paces in a tight, jittering circle, teeth chattering, clearly looking for something to latch onto and not let go."
     }
@@ -431,7 +437,7 @@ function startCombat(enemyId) {
 
   gameState.combat.inCombat = true;
   gameState.combat.enemy = enemy;
-  // previousLocation is set by the caller before starting combat
+  // previousLocation should be set by the code that *starts* the fight (e.g., movement)
   gameState.combat.intent = null;
 
   const intro = [
@@ -595,12 +601,6 @@ function handleAttack() {
       `The ${enemy.name}'s last breath rattles out in a wet gurgle as its body sags into the dirt.`
     ];
     logSystem(pickLine(deathLines));
-
-    // Mark rat as dead so the entrance fight won't respawn anymore
-    if (enemy.id === "dawnspire_rat") {
-      gameState.flags.dungeonRatDead = true;
-    }
-
     const xp = enemy.xpReward || 0;
     if (xp > 0) gainXp(xp);
     endCombat();
@@ -709,8 +709,7 @@ function handleGo(direction) {
   }
 
   if (loc === "dark_forest_edge" && direction === "north") {
-    // You are moving from the forest edge into the dungeon entrance.
-    // If a fight starts here, running should take you back to THIS room.
+    // Moving from the forest edge into the broken ring at the surface
     const fromLocation = gameState.location;
 
     gameState.location = "dungeon_entrance";
@@ -719,8 +718,9 @@ function handleGo(direction) {
     );
     describeLocation();
 
-    // Entrance fight: only stops once the rat is dead
-    if (!gameState.flags.dungeonRatDead) {
+    // First encounter
+    if (!gameState.flags.firstDungeonFightDone) {
+      gameState.flags.firstDungeonFightDone = true;
       gameState.combat.previousLocation = fromLocation; // where 'run' will send you
       startCombat("dawnspire_rat");
     }
@@ -734,9 +734,24 @@ function handleGo(direction) {
     return;
   }
 
+  // NEW: go down into Room 1 from the surface ring
+  if (loc === "dungeon_entrance" && direction === "down") {
+    gameState.location = "broken_ring_descent";
+    logSystem("You step onto the worn stone steps and begin the descent into the throat of the Dawnspire.");
+    describeLocation();
+    return;
+  }
+
+  // NEW: go up from Room 1 back to the surface ring (until we add the collapse event)
+  if (loc === "broken_ring_descent" && direction === "up") {
+    gameState.location = "dungeon_entrance";
+    logSystem("You climb back up the spiral, the faint air from above brushing your face.");
+    describeLocation();
+    return;
+  }
+
   logSystem("You can't go that way.");
 }
-
 
 // =========================
 // Help / name / reset
@@ -749,7 +764,7 @@ function handleHelp() {
       "  help               - show this help",
       "  look               - describe your surroundings or current foe",
       "  inventory (or inv) - show your items",
-      "  go <direction>     - move (e.g., 'go north')",
+      "  go <direction>     - move (e.g., 'go north', 'go down')",
       "  name <your name>   - set your name",
       "  attack             - attack the enemy in combat",
       "  block              - brace to blunt the enemy's next attack",
@@ -894,7 +909,7 @@ function handleCommand(raw) {
       break;
     case "go":
       if (!rest.length) {
-        logSystem("Go where? (north, south, east, west)");
+        logSystem("Go where? (north, south, east, west, up, down)");
       } else {
         handleGo(rest[0]);
       }
