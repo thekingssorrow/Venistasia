@@ -18,7 +18,12 @@ const gameState = {
     { id: "ration", name: "Travel Ration", type: "ration" },
   ],
   location: "village_square",
-  flags: {},
+  flags: {
+    // we'll add flags as needed
+    // firstDungeonFightDone: false,
+    // stairsCollapsed: false,
+    // gotLanternBadge: false,
+  },
   combat: {
     inCombat: false,
     enemy: null,
@@ -286,7 +291,7 @@ const locations = {
     ].join(" "),
   },
 
-  // NEW: Room 1 – Broken Ring Descent
+  // Room 1 – Broken Ring Descent (already planned)
   broken_ring_descent: {
     name: "Dawnspire – Broken Ring Descent",
     description: [
@@ -294,7 +299,48 @@ const locations = {
       "Your footsteps echo in the tight shaft, overlapping in a rhythm that sounds almost like someone else is walking just behind you. The air is colder the deeper you go, pressed flat and stale, as if this place has been holding its breath for a very long time."
     ].join(" "),
   },
+
+  // Room 2 – Cracked Landing
+  cracked_landing: {
+    name: "Dawnspire – Cracked Landing",
+    description: [
+      "The stairs spill out onto a cramped stone landing, barely wider than your outstretched arms. Chunks of rubble litter the floor, sharp-edged and fresh, as if the stone itself has been flaking away in slow panic.",
+      "Looking back up the spiral, you can still see the suggestion of light far above—a thin, pale smear where the surface must be. Each breath down here tastes of grit and dust, and the occasional shudder of stone overhead drops a rain of powder onto your shoulders."
+    ].join(" "),
+  },
+
+  // Room 3 – Collapsed Stairwell
+  collapsed_stairwell: {
+    name: "Dawnspire – Collapsed Stairwell",
+    description: [
+      "The stairwell here buckles and twists around a mound of fallen stone, the once-smooth descent warped by the violence of some old collapse. Dust hangs in the air in slow, lazy spirals, glowing weakly in the lichen-light.",
+      "Above, you can just make out where the stair used to continue—a jagged plug of shattered blocks and packed debris. Below, the stairs continue into a deeper dark, the air colder and somehow hungrier the further down you look."
+    ].join(" "),
+  },
 };
+
+// helper: stairs collapse message
+function reportStairsCollapsed() {
+  logSystem("Stone and dust fill the stairwell above. Whatever daylight once lived up there is gone.");
+}
+
+// helper: landing loot
+function maybeGrantLanternBadge() {
+  if (gameState.flags.gotLanternBadge) return;
+
+  gameState.flags.gotLanternBadge = true;
+  const badge = {
+    id: "lantern-knight-badge",
+    name: "Lantern Knight’s Badge",
+    type: "key",
+  };
+  gameState.inventory.push(badge);
+
+  logSystem(
+    "Half-buried in the rubble, your fingers close on something cold and worked. You pry free a small metal badge stamped with a stylized lantern—tarnished, but unmistakably deliberate. A Lantern Knight’s badge, abandoned here and left to watch the dark alone."
+  );
+  logSystem("You take the Lantern Knight’s Badge.");
+}
 
 function describeLocation() {
   const loc = locations[gameState.location];
@@ -303,6 +349,11 @@ function describeLocation() {
     return;
   }
   logSystem(`${loc.name}\n${loc.description}`);
+
+  // special: landing loot
+  if (gameState.location === "cracked_landing") {
+    maybeGrantLanternBadge();
+  }
 }
 
 function handleLook() {
@@ -692,7 +743,9 @@ function handleGo(direction) {
   }
 
   const loc = gameState.location;
+  const stairsCollapsed = !!gameState.flags.stairsCollapsed;
 
+  // village <-> forest
   if (loc === "village_square" && direction === "north") {
     gameState.location = "dark_forest_edge";
     logSystem("You walk north, leaving the safety of Briar's Edge behind...");
@@ -708,8 +761,8 @@ function handleGo(direction) {
     return;
   }
 
+  // forest -> surface ring
   if (loc === "dark_forest_edge" && direction === "north") {
-    // Moving from the forest edge into the broken ring at the surface
     const fromLocation = gameState.location;
 
     gameState.location = "dungeon_entrance";
@@ -718,7 +771,7 @@ function handleGo(direction) {
     );
     describeLocation();
 
-    // First encounter
+    // First encounter at the entrance
     if (!gameState.flags.firstDungeonFightDone) {
       gameState.flags.firstDungeonFightDone = true;
       gameState.combat.previousLocation = fromLocation; // where 'run' will send you
@@ -727,27 +780,102 @@ function handleGo(direction) {
     return;
   }
 
+  // surface ring -> forest (only if not collapsed)
   if (loc === "dungeon_entrance" && direction === "south") {
+    if (stairsCollapsed) {
+      reportStairsCollapsed();
+      return;
+    }
     gameState.location = "dark_forest_edge";
     logSystem("You climb back up out of the broken ring and return to the forest edge.");
     describeLocation();
     return;
   }
 
-  // NEW: go down into Room 1 from the surface ring
+  // surface ring -> Room 1 (Broken Ring Descent)
   if (loc === "dungeon_entrance" && direction === "down") {
+    if (stairsCollapsed) {
+      reportStairsCollapsed();
+      return;
+    }
     gameState.location = "broken_ring_descent";
     logSystem("You step onto the worn stone steps and begin the descent into the throat of the Dawnspire.");
     describeLocation();
     return;
   }
 
-  // NEW: go up from Room 1 back to the surface ring (until we add the collapse event)
+  // Room 1 -> surface ring (only if not collapsed)
   if (loc === "broken_ring_descent" && direction === "up") {
+    if (stairsCollapsed) {
+      reportStairsCollapsed();
+      return;
+    }
     gameState.location = "dungeon_entrance";
-    logSystem("You climb back up the spiral, the faint air from above brushing your face.");
+    logSystem("You climb back toward the broken ring, each step heavier than the last.");
     describeLocation();
     return;
+  }
+
+  // Room 1 -> Room 2 (Cracked Landing)
+  if (loc === "broken_ring_descent" && direction === "down") {
+    gameState.location = "cracked_landing";
+    logSystem("You descend further, the walls pressing closer until the stairwell opens into a small, fractured ledge.");
+    describeLocation();
+    return;
+  }
+
+  // Room 2 – Cracked Landing logic
+  if (loc === "cracked_landing") {
+    // Up: attempt to go back toward Room 1 / surface
+    if (direction === "up") {
+      if (stairsCollapsed) {
+        reportStairsCollapsed();
+        return;
+      } else {
+        gameState.location = "broken_ring_descent";
+        logSystem("You climb back up the spiral toward the faint memory of light above.");
+        describeLocation();
+        return;
+      }
+    }
+
+    // Down/forward: toward Room 3, triggers the quake once
+    if (direction === "down" || direction === "forward") {
+      const firstTimeLeavingDeeper = !stairsCollapsed;
+
+      gameState.location = "collapsed_stairwell";
+
+      if (firstTimeLeavingDeeper) {
+        gameState.flags.stairsCollapsed = true;
+        logSystem(
+          "As you step off the landing, a deep groan rolls through the stone. The stairwell shudders violently. Above you, something gives way with a crack like breaking bone."
+        );
+        logSystem(
+          "You barely keep your footing as blocks the size of coffins crash down somewhere above, choking the stair in dust and rubble."
+        );
+        reportStairsCollapsed();
+      }
+
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 3 – Collapsed Stairwell logic
+  if (loc === "collapsed_stairwell") {
+    if (direction === "up") {
+      // Up leads back to the Cracked Landing (2), but the way to the surface is blocked further above.
+      gameState.location = "cracked_landing";
+      logSystem("You climb back up to the cracked landing, dust sifting down from the ruined stair above.");
+      describeLocation();
+      return;
+    }
+
+    if (direction === "down") {
+      // placeholder for deeper floors
+      logSystem("The stairs descend further into shadow, but that path isn’t ready yet.");
+      return;
+    }
   }
 
   logSystem("You can't go that way.");
@@ -764,7 +892,7 @@ function handleHelp() {
       "  help               - show this help",
       "  look               - describe your surroundings or current foe",
       "  inventory (or inv) - show your items",
-      "  go <direction>     - move (e.g., 'go north', 'go down')",
+      "  go <direction>     - move (e.g., 'go north', 'go down', 'go forward')",
       "  name <your name>   - set your name",
       "  attack             - attack the enemy in combat",
       "  block              - brace to blunt the enemy's next attack",
@@ -909,7 +1037,7 @@ function handleCommand(raw) {
       break;
     case "go":
       if (!rest.length) {
-        logSystem("Go where? (north, south, east, west, up, down)");
+        logSystem("Go where? (north, south, east, west, up, down, forward)");
       } else {
         handleGo(rest[0]);
       }
