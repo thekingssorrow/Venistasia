@@ -45,7 +45,6 @@ function getOrCreatePlayerId() {
   const key = "venistasia_player_id";
   let id = localStorage.getItem(key);
   if (!id) {
-    // If crypto.randomUUID isn't available, fallback
     if (window.crypto && crypto.randomUUID) {
       id = "P-" + crypto.randomUUID();
     } else {
@@ -75,6 +74,20 @@ function consumeItemByType(type) {
   if (idx === -1) return false;
   gameState.inventory.splice(idx, 1);
   return true;
+}
+
+// Extra inventory helpers for "use" system
+function findItemIndexByNameFragment(fragment) {
+  const lower = fragment.toLowerCase();
+  return gameState.inventory.findIndex((item) =>
+    (item.name || "").toLowerCase().includes(lower)
+  );
+}
+
+function consumeItemByIndex(idx) {
+  if (idx < 0 || idx >= gameState.inventory.length) return null;
+  const [item] = gameState.inventory.splice(idx, 1);
+  return item;
 }
 
 // =========================
@@ -235,7 +248,7 @@ let outputEl,
 // =========================
 
 function updateStatusBar() {
-  if (!statusNameEl) return; // in case DOM didn't init correctly
+  if (!statusNameEl) return;
   const p = gameState.player;
   statusNameEl.textContent = `Name: ${p.name}`;
   statusLevelEl.textContent = `Level: ${p.level}`;
@@ -427,7 +440,7 @@ function maybeGrantVestibuleLoot() {
     id: "dirty-bandage",
     name: "Dirty Bandage",
     type: "consumable",
-    heal: 4, // you can hook this up later to a 'use' command
+    heal: 4,
   };
 
   gameState.inventory.push(ration, bandage);
@@ -458,6 +471,65 @@ function startVestibuleFight() {
   }
 
   startCombat("dawnspire_rat");
+}
+
+// =========================
+// Use / bandage system
+// =========================
+
+function useBandage(inCombat) {
+  const idx = findItemIndexByNameFragment("bandage");
+  if (idx === -1) {
+    logSystem("You fumble for a bandage, but come up with nothing but dirty fingers.");
+    return false;
+  }
+
+  const item = gameState.inventory[idx];
+  const healAmount = item.heal || 4;
+  consumeItemByIndex(idx);
+
+  const p = gameState.player;
+  const before = p.hp;
+  p.hp = Math.min(p.maxHp, p.hp + healAmount);
+  updateStatusBar();
+
+  const healed = p.hp - before;
+
+  if (healed <= 0) {
+    logSystem("You wrap the filthy cloth around already-closed wounds. It does more for your courage than your flesh.");
+  } else if (inCombat) {
+    logSystem(
+      "You yank the filthy bandage tight around the worst of the bleeding, teeth clenched. The world narrows to breath, pressure, and the wet thump of your heart. For a heartbeat, nothing gets through."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  } else {
+    logSystem(
+      "You take a moment to wrap the dirty bandage around the worst of the damage. It isn't clean, but it holds you together."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  }
+
+  return true;
+}
+
+function handleUse(rawArgs, { inCombat = false } = {}) {
+  const arg = (rawArgs || "").trim().toLowerCase();
+  if (!arg) {
+    logSystem("Use what?");
+    return;
+  }
+
+  // Bandages
+  if (arg.includes("bandage")) {
+    const used = useBandage(inCombat);
+    if (!used) return;
+
+    // In combat, using a bandage is your whole turn and prevents damage this round.
+    // We deliberately do NOT call enemyTurn() here.
+    return;
+  }
+
+  logSystem("You don't have a clear way to use that right now.");
 }
 
 function describeLocation() {
@@ -1096,6 +1168,7 @@ function handleHelp() {
       "  block              - brace to blunt the enemy's next attack",
       "  run                - attempt to flee from combat",
       "  rest               - consume a ration to fully restore your HP",
+      "  use <item>         - use an item (e.g., 'use bandage')",
       "  reset              - wipe your progress and restart",
     ].join("\n")
   );
@@ -1188,6 +1261,11 @@ function handleCombatCommand(cmd, raw, rest) {
     case "run":
       handleRun();
       break;
+    case "use": {
+      const argStr = raw.slice(4).trim();
+      handleUse(argStr, { inCombat: true });
+      break;
+    }
     case "look":
       handleLook();
       break;
@@ -1202,7 +1280,7 @@ function handleCombatCommand(cmd, raw, rest) {
       logSystem("You can't rest while something is trying to rip you open.");
       break;
     default:
-      logSystem("In the heat of battle, that command makes no sense. Try 'attack', 'block', or 'run'.");
+      logSystem("In the heat of battle, that command makes no sense. Try 'attack', 'block', 'run', or 'use bandage'.");
       break;
   }
 }
@@ -1255,6 +1333,9 @@ function handleCommand(raw) {
       break;
     case "rest":
       handleRest();
+      break;
+    case "use":
+      handleUse(raw.slice(4).trim(), { inCombat: false });
       break;
     case "reset":
       handleReset();
