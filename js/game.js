@@ -34,6 +34,8 @@ const gameState = {
     // gnawedStoreroomTrapDone: false,
     // gotStoreroomBuckler: false,
     // outerHallFirstCheck: false,
+    // gotFlickerNodeLoot: false,
+    // flickerShardAligned: false,
   },
   combat: {
     inCombat: false,
@@ -94,6 +96,10 @@ function consumeItemByIndex(idx) {
   if (idx < 0 || idx >= gameState.inventory.length) return null;
   const [item] = gameState.inventory.splice(idx, 1);
   return item;
+}
+
+function playerHasLanternShard() {
+  return gameState.inventory.some((item) => item.id === "lantern-shard");
 }
 
 // Equipment helpers
@@ -386,6 +392,24 @@ const locations = {
       "Most of the lanterns hang shattered or gutted, but here and there an intact sconce remains: shallow stone cups shaped to cradle something prismatic, now empty and cold."
     ].join(" "),
   },
+
+  // Room 7 – Flicker Node
+  flicker_node: {
+    name: "Dawnspire – Flicker Node",
+    description: [
+      "The hall pinches inward around a small junction chamber, its ceiling lower and the air close with dust and the faint smell of old oil.",
+      "On the far wall, a single lantern fixture survives intact: a stone-backed housing with a cracked mirror panel behind it and an empty prismatic socket in front, waiting for something to catch and throw the light onward."
+    ].join(" "),
+  },
+
+  // Room 9 – Mirror Gallery (placeholder)
+  mirror_gallery: {
+    name: "Dawnspire – Mirror Gallery",
+    description: [
+      "The passage opens into a longer chamber ribbed with tall, cracked mirror panels. Some hang at crooked angles, others have slumped half-free of their frames, spiderwebbed with fractures.",
+      "Whatever light once lived here was meant to be sliced, redirected, and braided along the walls—but now only dust and your own reflection stare back in a dozen broken pieces."
+    ].join(" "),
+  },
 };
 
 // Exits helper text for each location
@@ -408,6 +432,10 @@ const exitsByLocation = {
     "Obvious exits: west/back – through the low arch into the rat-gnawed vestibule.",
   outer_hall_lanterns:
     "Obvious exits: south – back to the rat-gnawed vestibule; east – toward a flickering node of old power; north – toward a sealed Door of Failed Light.",
+  flicker_node:
+    "Obvious exits: west/back – to the Outer Hall of Lanterns; north – into a gallery of cracked mirrors.",
+  mirror_gallery:
+    "Obvious exits: south/back – to the flicker node junction.",
 };
 
 function printExitsForLocation(id) {
@@ -597,6 +625,27 @@ function maybeGrantStoreroomBuckler() {
   }
 }
 
+// helper: Flicker Node loot – 2–5 coins
+function maybeGrantFlickerNodeLoot() {
+  if (gameState.flags.gotFlickerNodeLoot) return;
+
+  gameState.flags.gotFlickerNodeLoot = true;
+
+  const count = roll(2, 5);
+  for (let i = 0; i < count; i++) {
+    gameState.inventory.push({
+      id: "dawnspire-coin",
+      name: "Dawnspire Coin",
+      type: "coin",
+    });
+  }
+
+  logSystem(
+    "As you shift a broken slab near the lantern housing, something small and hard skitters free. A few tarnished coins lie scattered in the dust, stamped with an empire crest nobody bothers to recognize anymore."
+  );
+  logSystem(`You gain: Dawnspire Coins (${count}).`);
+}
+
 // helper: start the vestibule multi-rat fight
 function startVestibuleFight() {
   gameState.flags.firstVestibuleVisit = true;
@@ -700,13 +749,41 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
     return;
   }
 
-  // Bandages
+  // Bandages – mid-combat heal + damage prevention
   if (arg.includes("bandage")) {
     const used = useBandage(inCombat);
     if (!used) return;
-
     // In combat, using a bandage is your whole turn and prevents that round's damage.
     // We deliberately do NOT call enemyTurn() here.
+    return;
+  }
+
+  // Lantern Shard in Flicker Node – Light must travel.
+  if (
+    (arg.includes("shard") || arg.includes("crystal")) &&
+    gameState.location === "flicker_node"
+  ) {
+    if (!playerHasLanternShard()) {
+      logSystem("You pat your pockets for crystal, but come up empty. The lantern socket stays dark and expectant.");
+      return;
+    }
+
+    if (gameState.flags.flickerShardAligned) {
+      logSystem(
+        "You brush your fingers over the shard already seated in the lantern’s socket. The beam holds steady, aimed north into the waiting mirrors."
+      );
+      return;
+    }
+
+    gameState.flags.flickerShardAligned = true;
+
+    logSystem(
+      "You fit the Lantern Shard into the empty socket. It settles with a faint, teeth-rattling click, as if the stone itself has been waiting for this exact shape."
+    );
+    logSystem(
+      "A thin thread of pale light wakes inside the shard and knifes outward, catching the cracked mirror panel and throwing a ghostly beam north toward the gallery."
+    );
+    logSystem("The inscription beneath the lantern seems satisfied: “Light must travel.”");
     return;
   }
 
@@ -740,6 +817,41 @@ function describeLocation() {
     !gameState.combat.inCombat
   ) {
     maybeGrantStoreroomBuckler();
+  }
+
+  // special: Flicker Node loot + puzzle flavor
+  if (
+    gameState.location === "flicker_node" &&
+    !gameState.combat.inCombat
+  ) {
+    maybeGrantFlickerNodeLoot();
+
+    if (gameState.flags.flickerShardAligned) {
+      logSystem(
+        "The inset lantern hums faintly, a hairline beam of light carving north through the dust toward the mirror-lined hall beyond."
+      );
+    } else if (playerHasLanternShard()) {
+      logSystem(
+        "On the lantern’s base, a tiny inscription reads: “Light must travel.” The empty prismatic socket looks uncomfortably close to the shard you’re carrying."
+      );
+    } else {
+      logSystem(
+        "The lantern’s inscription—“Light must travel.”—sits beneath an empty prismatic socket. Whatever once lived there is long gone."
+      );
+    }
+  }
+
+  // special: Mirror Gallery reacts to whether the beam is active
+  if (gameState.location === "mirror_gallery") {
+    if (gameState.flags.flickerShardAligned) {
+      logSystem(
+        "A faint thread of light slips in from the south, catching the edge of one cracked panel. It splinters weakly across the others, hinting at how the gallery once braided brightness through the stone."
+      );
+    } else {
+      logSystem(
+        "Without any source to feed them, the mirrors show nothing but dust and fractured reflections. The gallery feels like a question that hasn't been asked properly yet."
+      );
+    }
   }
 
   // exit hint
@@ -1398,9 +1510,11 @@ function handleGo(direction) {
     }
 
     if (direction === "east") {
+      gameState.location = "flicker_node";
       logSystem(
-        "A faint tug of air hints at a chamber ahead—a place where the dark feels thinner, like something still remembers how to flicker there. That part of the Dawnspire isn't ready yet."
+        "You follow the faint sense of tension in the stone until the hall cinches down into a smaller junction where a single intact lantern waits."
       );
+      describeLocation();
       return;
     }
 
@@ -1408,6 +1522,39 @@ function handleGo(direction) {
       logSystem(
         "The hall tightens around a heavy, sealed door rimmed with dead lantern cups. Whatever waits beyond is still only a shape in your future."
       );
+      return;
+    }
+  }
+
+  // Room 7 – Flicker Node logic
+  if (loc === "flicker_node") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "outer_hall_lanterns";
+      logSystem(
+        "You back out of the cramped junction, letting the single lantern slip from view as the longer hall opens around you again."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north") {
+      gameState.location = "mirror_gallery";
+      logSystem(
+        "You move north, following where the lantern’s cracked mirror panel points. The stone opens into a chamber lined with tall, damaged mirrors."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 9 – Mirror Gallery logic (placeholder paths)
+  if (loc === "mirror_gallery") {
+    if (direction === "south" || direction === "back") {
+      gameState.location = "flicker_node";
+      logSystem(
+        "You step back out of the broken reflections and return to the tight junction where the beam begins."
+      );
+      describeLocation();
       return;
     }
   }
@@ -1432,7 +1579,7 @@ function handleHelp() {
       "  block              - brace to blunt the enemy's next attack",
       "  run                - attempt to flee from combat",
       "  rest               - consume a ration to fully restore your HP",
-      "  use <item>         - use an item (e.g., 'use bandage')",
+      "  use <item>         - use an item (e.g., 'use bandage', 'use shard')",
       "  equip <item>       - equip a weapon or shield (e.g., 'equip buckler')",
       "  reset              - wipe your progress and restart",
     ].join("\n")
