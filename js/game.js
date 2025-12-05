@@ -43,6 +43,10 @@ const gameState = {
     // mirrorBeamToNiche: false,       // 9 -> beam east toward 10
     // mirrorBeamToDoor: false,        // 9 -> beam toward 8
     // mirrorGalleryHintShown: false,
+    // guardPostBellRung: false,
+    // guardPostBellAmbushPending: false,
+    // guardPostBellAmbushTriggered: false,
+    // gotGuardSpear: false,
   },
   combat: {
     inCombat: false,
@@ -111,10 +115,7 @@ function playerHasLanternShard() {
     if (!item) return false;
     const id = item.id || "";
     const name = (item.name || "").toLowerCase();
-    return (
-      id.startsWith("lantern-shard") ||
-      name.includes("lantern shard")
-    );
+    return id.startsWith("lantern-shard") || name.includes("lantern shard");
   });
 }
 
@@ -137,7 +138,7 @@ function getEquippedWeapon() {
 }
 
 // =========================
-// Combat flavor text
+– Combat flavor text
 // =========================
 
 const combatFlavor = {
@@ -446,12 +447,21 @@ const locations = {
     ].join(" "),
   },
 
-  // Room 11 – Fallen Guard Post (stubbed for now)
+  // Room 11 – Fallen Guard Post
   fallen_guard_post: {
     name: "Dawnspire – Fallen Guard Post",
     description: [
-      "The passage opens into a squat chamber that still remembers the shape of vigilance. Half-toppled barricades of stone and wood choke the room, and a pair of rust-flaked spearheads jut from the debris like broken teeth.",
-      "Whatever watched this approach bled out a long time ago. The air still tastes faintly of iron and dust."
+      "The passage opens into a small room that still remembers the shape of vigilance. An overturned table lies wedged against one wall like a failed barricade, its legs splintered and its underside scored with old knife marks.",
+      "Rusted spears are scattered across the floor and propped in corners, their heads flaking orange, hafts gone soft with rot. From a cracked iron bracket near the ceiling hangs a bell, split down one side but still heavy enough to make your teeth ache just looking at it."
+    ].join(" "),
+  },
+
+  // Room 12 – Broken Barracks
+  broken_barracks: {
+    name: "Dawnspire – Broken Barracks",
+    description: [
+      "Beyond the guard post, the stone opens into a longer chamber where the air smells of dry rot and old sweat. Two rows of bunk frames list at odd angles, their boards snapped or missing entirely.",
+      "Scraps of rotted bedding cling to the corners like molted skins. Footlockers lie smashed and kicked aside, whatever they once guarded long since picked clean or ground into the dust under desperate boots."
     ].join(" "),
   },
 };
@@ -483,9 +493,11 @@ const exitsByLocation = {
   mirror_gallery:
     "Obvious exits: south/back – to the flicker node junction; east – into a small niche chamber cut around a lonely pedestal.",
   shard_niche:
-    "Obvious exits: west/back – to the mirror gallery; north – toward a low chamber that feels like an old guard post.",
+    "Obvious exits: west/back – to the mirror gallery; north – toward a cramped guard post with an overturned table and a cracked bell.",
   fallen_guard_post:
-    "Obvious exits: south/back – to the shard niche, where the light-work waits.",
+    "Obvious exits: south/back – to the shard niche; east – into a longer chamber lined with ruined bunks.",
+  broken_barracks:
+    "Obvious exits: west/back – to the fallen guard post and its hanging bell.",
 };
 
 function printExitsForLocation(id) {
@@ -727,6 +739,110 @@ function maybeGrantFlickerNodeLoot() {
   logSystem(`You gain: Dawnspire Coins (${count}).`);
 }
 
+// helper: Guard Post loot – Old Guard Spear
+function maybeGrantGuardPostLoot() {
+  if (gameState.flags.gotGuardSpear) return;
+
+  gameState.flags.gotGuardSpear = true;
+
+  const spear = {
+    id: "old-guard-spear",
+    name: "Old Guard Spear",
+    type: "weapon",
+    atk: 1,
+  };
+
+  gameState.inventory.push(spear);
+
+  logSystem(
+    "Picking through the tangle of fallen spears, you find one whose haft hasn’t gone completely to mush. Its head is rusted but still wicked, the weight on the end dragging just right when you test the balance."
+  );
+  logSystem(
+    "It’s longer than your sword—enough reach to keep teeth and knives a step farther from your throat."
+  );
+  logSystem("You gain: Old Guard Spear.");
+
+  // Auto-equip if you have no weapon or are still on the rusty sword
+  ensureEquipment();
+  const eqWeapon = gameState.player.equipment.weaponId;
+  if (!eqWeapon || eqWeapon === "rusty-sword") {
+    gameState.player.equipment.weaponId = "old-guard-spear";
+    logSystem("You trade the close comfort of your rusty sword for the reach of the spear, settling its butt against the stone with a dull knock.");
+  }
+}
+
+// helper: bell ring logic in Fallen Guard Post
+function triggerBellRing() {
+  if (gameState.flags.guardPostBellRung) {
+    logSystem(
+      "You eye the cracked bell again. Whatever answer it had to give, it already shouted it into the halls."
+    );
+    return;
+  }
+
+  gameState.flags.guardPostBellRung = true;
+
+  logSystem(
+    "You wrap your fingers around the cold, split rim of the bell and give it a pull."
+  );
+  logSystem(
+    "Sound tears out of it in a broken, staggering peal—too loud for a room this small, rattling dust from the ceiling and making your jaw ache."
+  );
+
+  const rollResult = roll(1, 100);
+
+  if (rollResult <= 50) {
+    // Immediate rat swarm fight
+    logSystem(
+      "For a heartbeat, nothing answers. Then the spears on the floor begin to rattle as something small and many-legged pours out from under the overturned table."
+    );
+    logSystem(
+      "A swarm of tunnel-rats boils across the stone, drawn by the noise and the promise of something warm to gnaw."
+    );
+    gameState.combat.previousLocation = "fallen_guard_post";
+    startCombat("dawnspire_rat");
+  } else {
+    // Distant echo + later ambush
+    logSystem(
+      "The sound staggers off into the dark, bouncing from wall to wall until it’s hard to tell where it started."
+    );
+    logSystem(
+      "Far away in the halls beyond, something answers with the scrape of claws and the faint, excited squeal of things that have just been told where dinner might be."
+    );
+    gameState.flags.guardPostBellAmbushPending = true;
+  }
+}
+
+// helper: possibly trigger bell ambush later
+function maybeTriggerBellAmbush() {
+  if (
+    !gameState.flags.guardPostBellAmbushPending ||
+    gameState.flags.guardPostBellAmbushTriggered
+  ) {
+    return;
+  }
+
+  const loc = gameState.location;
+  // Ambush springs the first time you enter a “wider” hall after ringing:
+  if (
+    loc === "outer_hall_lanterns" ||
+    loc === "mirror_gallery"
+  ) {
+    gameState.flags.guardPostBellAmbushPending = false;
+    gameState.flags.guardPostBellAmbushTriggered = true;
+
+    logSystem(
+      "Somewhere behind you, the echo of that broken bell peals again—memory or imagination, you can’t tell. What you do hear clearly is the sudden scrabble of claws closing in."
+    );
+    logSystem(
+      "A starving tunnel-rat darts out from a crack in the stone, eyes wild and teeth already wet, riding the wake of your own noise."
+    );
+
+    gameState.combat.previousLocation = loc;
+    startCombat("dawnspire_rat");
+  }
+}
+
 // helper: start the vestibule multi-rat fight
 function startVestibuleFight() {
   gameState.flags.firstVestibuleVisit = true;
@@ -750,7 +866,7 @@ function startVestibuleFight() {
 }
 
 // =========================
-// Use / bandage / equip / mirrors / shards
+// Use / bandage / equip / mirrors / shards / bell
 // =========================
 
 function useBandage(inCombat) {
@@ -827,6 +943,16 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
   const arg = (rawArgs || "").trim().toLowerCase();
   if (!arg) {
     logSystem("Use what?");
+    return;
+  }
+
+  // Bell in Fallen Guard Post
+  if (arg.includes("bell") && gameState.location === "fallen_guard_post") {
+    if (inCombat) {
+      logSystem("You have exactly zero spare seconds to tug on a bell rope right now.");
+      return;
+    }
+    triggerBellRing();
     return;
   }
 
@@ -1001,6 +1127,38 @@ function handleAdjust(rawArgs) {
   }
 }
 
+// Ring command – mostly for the bell
+function handleRing(rawArgs, { inCombat = false } = {}) {
+  const arg = (rawArgs || "").trim().toLowerCase();
+  if (!arg || arg === "bell") {
+    if (gameState.location === "fallen_guard_post") {
+      if (inCombat) {
+        logSystem("You have no spare breath to waste on drawing more attention with that bell.");
+        return;
+      }
+      triggerBellRing();
+      return;
+    }
+    logSystem("You look around for something worth ringing. Nothing here seems eager to answer.");
+    return;
+  }
+
+  if (arg.includes("bell")) {
+    if (gameState.location === "fallen_guard_post") {
+      if (inCombat) {
+        logSystem("You have no spare breath to waste on drawing more attention with that bell.");
+        return;
+      }
+      triggerBellRing();
+      return;
+    }
+    logSystem("There’s no bell here to ring—just your own pulse in your ears.");
+    return;
+  }
+
+  logSystem("You don't find anything that wants to be rung.");
+}
+
 function describeLocation() {
   const loc = locations[gameState.location];
   if (!loc) {
@@ -1136,8 +1294,31 @@ function describeLocation() {
     }
   }
 
+  // special: Fallen Guard Post loot
+  if (
+    gameState.location === "fallen_guard_post" &&
+    !gameState.combat.inCombat
+  ) {
+    maybeGrantGuardPostLoot();
+
+    if (!gameState.flags.guardPostBellRung) {
+      logSystem(
+        "The cracked bell hangs just high enough to make you think about jumping for it. Nothing in this room looks like it would thank you for the noise."
+      );
+    } else {
+      logSystem(
+        "The bell sways slightly on its damaged bracket, stilling with a faint metallic creak. Dust freckles the floor beneath it like old, settled applause."
+      );
+    }
+  }
+
   // exit hint
   printExitsForLocation(gameState.location);
+
+  // possible delayed bell ambush
+  if (!gameState.combat.inCombat) {
+    maybeTriggerBellAmbush();
+  }
 }
 
 function handleLook() {
@@ -1364,6 +1545,13 @@ function enemyTurn(blocking = false) {
     if (hasBuckler) {
       enemyDmg = Math.max(0, enemyDmg - 1);
     }
+  }
+
+  // Old Guard Spear passive reach block: -1 damage to any hit when equipped
+  const weapon = getEquippedWeapon();
+  const hasSpear = weapon && weapon.id === "old-guard-spear";
+  if (enemyDmg > 0 && hasSpear) {
+    enemyDmg = Math.max(0, enemyDmg - 1);
   }
 
   const enemyBucket = enemyCrit
@@ -1905,19 +2093,40 @@ function handleGo(direction) {
     if (direction === "north") {
       gameState.location = "fallen_guard_post";
       logSystem(
-        "You take the short northern passage, ducking under a sagging lintel into a low chamber that still smells faintly of old vigilance."
+        "You take the short northern passage, ducking under a sagging lintel into a low room that still smells faintly of drill and duty."
       );
       describeLocation();
       return;
     }
   }
 
-  // Room 11 – Fallen Guard Post logic (for now, just a connector)
+  // Room 11 – Fallen Guard Post logic
   if (loc === "fallen_guard_post") {
     if (direction === "south" || direction === "back") {
       gameState.location = "shard_niche";
       logSystem(
-        "You step away from the dead barricades and slip back toward the shard-lit niche."
+        "You step away from the overturned table and the hanging bell, slipping back toward the shard-lit niche."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      gameState.location = "broken_barracks";
+      logSystem(
+        "You pick your way past the scattered spears and push through a narrow doorway into a longer chamber lined with ruined bunks."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 12 – Broken Barracks logic
+  if (loc === "broken_barracks") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "fallen_guard_post";
+      logSystem(
+        "You leave the broken bunks behind and step back into the cramped guard post and its cracked bell."
       );
       describeLocation();
       return;
@@ -1944,9 +2153,10 @@ function handleHelp() {
       "  block              - brace to blunt the enemy's next attack",
       "  run                - attempt to flee from combat",
       "  rest               - consume a ration to fully restore your HP",
-      "  use <item>         - use an item (e.g., 'use bandage', 'use shard')",
-      "  equip <item>       - equip a weapon or shield (e.g., 'equip buckler')",
+      "  use <item>         - use an item (e.g., 'use bandage', 'use shard', 'use bell')",
+      "  equip <item>       - equip a weapon or shield (e.g., 'equip buckler', 'equip spear')",
       "  adjust <target>    - adjust environmental mechanisms (e.g., 'adjust mirrors east', 'adjust mirrors door')",
+      "  ring <thing>       - ring something, where appropriate (e.g., 'ring bell' in the guard post)",
       "  reset              - wipe your progress and restart",
     ].join("\n")
   );
@@ -2048,6 +2258,11 @@ function handleCombatCommand(cmd, raw, rest) {
       handleUse(argStr, { inCombat: true });
       break;
     }
+    case "ring": {
+      const argStr = raw.slice(5).trim();
+      handleRing(argStr, { inCombat: true });
+      break;
+    }
     case "equip":
       logSystem("You don't have time to fumble with gear while something is trying to open you up.");
       break;
@@ -2130,6 +2345,9 @@ function handleCommand(raw) {
       break;
     case "adjust":
       handleAdjust(raw.slice(6).trim());
+      break;
+    case "ring":
+      handleRing(raw.slice(5).trim(), { inCombat: false });
       break;
     case "reset":
       handleReset();
@@ -2256,4 +2474,3 @@ window.addEventListener("DOMContentLoaded", () => {
 
   loadGameFromServer();
 });
-
