@@ -1185,7 +1185,7 @@ function grantShrineBlessingAndCharm() {
   gameState.flags.shrineBlessingGranted = true;
   gameState.flags.shrineBlessingActive = true;
 
-  // Loot: Flame-Touched Charm
+  // Loot: Flame-Touched Charm (only once)
   if (!gameState.flags.shrineLootTaken) {
     gameState.flags.shrineLootTaken = true;
     const charm = {
@@ -1201,21 +1201,28 @@ function grantShrineBlessingAndCharm() {
   }
 
   const p = gameState.player;
-  // Small immediate top-off feels nice
-  const before = p.hp;
-  p.hp = Math.min(p.maxHp, p.hp + 5);
+  const oldMax = p.maxHp;
+  const oldHp = p.hp;
+
+  // Permanent max HP boost: +5 to current max HP
+  p.maxHp = oldMax + 5;
+
+  // Also add 5 to current HP, but cap at new max
+  p.hp = Math.min(p.maxHp, oldHp + 5);
   updateStatusBar();
 
   logSystem(
     "Light floods up through the statue’s arm, into the crystal flame, and then out through the chamber. For a heartbeat, you feel as though you’re standing in noon sunlight instead of buried stone."
   );
   logSystem(
-    "The warmth pools behind your ribs and settles there, a thin burning thread that refuses to go out."
+    "The warmth doesn’t just close wounds—it settles deeper, thickening bone and hardening muscle."
   );
-
-  if (p.hp > before) {
+  logSystem(
+    `Your maximum HP rises from ${oldMax} to ${p.maxHp}.`
+  );
+  if (p.hp > oldHp) {
     logSystem(
-      `You feel some of your wounds knit under the heat. (+${p.hp - before} HP, now ${p.hp}/${p.maxHp})`
+      `You also feel some of your current hurts ease. HP: ${p.hp}/${p.maxHp}.`
     );
   }
 
