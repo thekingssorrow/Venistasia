@@ -23,7 +23,7 @@ const gameState = {
   ],
   location: "village_square",
   flags: {
-    // gets filled as you play; left empty on purpose
+    // dynamic flags as you play
   },
   combat: {
     inCombat: false,
@@ -110,12 +110,11 @@ function getEquippedWeapon() {
     const found = gameState.inventory.find((i) => i.id === eqId);
     if (found) return found;
   }
-  // fallback: first weapon in inventory
   return gameState.inventory.find((i) => i.type === "weapon") || null;
 }
 
 // =========================
-// Combat flavor text (shortened)
+// Combat flavor text (trimmed sets)
 // =========================
 
 const combatFlavor = {
@@ -376,8 +375,9 @@ const locations = {
   lantern_muster_hall: {
     name: "Dawnspire – Lantern Muster Hall",
     description: [
-      "A broad, low hall lined with empty weapon racks and pegboards where lanterns once hung in neat rows.",
-      "Faded outlines of shields and armor stain the walls. Someone tried to hold this place together long after the rest of the Dawnspire started to fall apart.",
+      "A broader chamber opens here, wider than the barracks, its ceiling held aloft by squat stone pillars veined with old soot.",
+      "Faded banners hang in ragged strips from iron rings, each bearing a stylized lantern picked out in flaking gold thread.",
+      "At the room’s center, the flagstones give way to a cracked stone relief-map of the Dawnspire itself—three concentric rings etched into the floor, shattered by jagged fault-lines.",
     ].join(" "),
   },
 };
@@ -413,9 +413,9 @@ const exitsByLocation = {
   fallen_guard_post:
     "Obvious exits: south/back – to the shard niche; east – into a longer chamber lined with ruined bunks.",
   broken_barracks:
-    "Obvious exits: west/back – to the fallen guard post; north – into a broader hall where lantern-bearers once assembled.",
+    "Obvious exits: west/back – to the fallen guard post; north – into a broader hall where lantern-bearers once gathered.",
   lantern_muster_hall:
-    "Obvious exits: south/back – to the broken barracks.",
+    "Obvious exits: south/back – to the broken barracks; east – toward a sealed armory choked with dust; north – toward a watch balcony over the halls.",
 };
 
 function printExitsForLocation(id) {
@@ -552,7 +552,6 @@ function runBarracksSearchTrapAndLoot() {
       );
       return;
     }
-    // Trap already fired but somehow loot not marked; just give loot.
     maybeGrantBarracksLoot();
     return;
   }
@@ -850,6 +849,23 @@ function startBarracksFight() {
   }
 
   startCombat("desiccated_soldier");
+}
+
+// helper: start Lantern Muster Hall mini-elite fight
+function startLanternMusterFight() {
+  if (gameState.flags.lanternMusterFightStarted) return;
+  gameState.flags.lanternMusterFightStarted = true;
+
+  gameState.combat.previousLocation = "broken_barracks";
+
+  logSystem(
+    "As you step across the cracked floor-map, one of the banner-shadows peels itself away from the far wall, lantern swinging from a dead hand."
+  );
+  logSystem(
+    "A figure in half-rotted plate armor staggers into the light it carries, empty eye-sockets glowing with a pale, steady ember."
+  );
+
+  startCombat("hollow_lantern_bearer");
 }
 
 // =========================
@@ -1240,6 +1256,13 @@ function handleSearch() {
     return;
   }
 
+  if (loc === "lantern_muster_hall") {
+    logSystem(
+      "You trace the edges of the cracked floor-map and check behind the tattered banners, but nothing new offers itself up—at least not yet."
+    );
+    return;
+  }
+
   logSystem("You take a moment to search, but nothing new turns up.");
 }
 
@@ -1405,6 +1428,26 @@ function describeLocation() {
     startBarracksFight();
   }
 
+  // Lantern Muster Hall – auto-start Hollow Lantern-Bearer + lore hint
+  if (
+    gameState.location === "lantern_muster_hall" &&
+    !gameState.combat.inCombat
+  ) {
+    if (!gameState.flags.lanternMusterMapHintShown) {
+      gameState.flags.lanternMusterMapHintShown = true;
+      logSystem(
+        "You follow the cracks in the floor-map with your boot. Three descending rings are carved there, each labeled in a tongue you only half-recognize."
+      );
+      logSystem(
+        "Along one shattered edge, a chipped inscription remains: “THREE RINGS BELOW—AND MORE BENEATH THAT.”"
+      );
+    }
+
+    if (!gameState.flags.lanternMusterFightCleared) {
+      startLanternMusterFight();
+    }
+  }
+
   printExitsForLocation(gameState.location);
 
   if (!gameState.combat.inCombat) {
@@ -1482,6 +1525,18 @@ const enemyTemplates = {
     xpReward: 20,
     description:
       "The corpse wears the ragged remains of a garrison tabard. Skin clings tight to bone, eyes sunken to dark pits that still somehow track your movements.",
+  },
+
+  hollow_lantern_bearer: {
+    id: "hollow_lantern_bearer",
+    name: "Hollow Lantern-Bearer",
+    type: "humanoid",
+    maxHp: 20,
+    atkMin: 3,
+    atkMax: 6,
+    xpReward: 40,
+    description:
+      "Half-rotted plate armor hangs from a frame of desiccated sinew and bone. In one hand it clutches a cracked crystal lantern that burns with a cold, steady glow; the other drags a notched halberd that scrapes sparks from the stone. Where its eyes should be, two pinpricks of lantern-light burn in patient, hateful circles.",
   },
 };
 
@@ -1797,6 +1852,11 @@ function handleAttack() {
 
     if (gameState.location === "broken_barracks") {
       gameState.flags.barracksFightCleared = true;
+    }
+
+    // Lantern Muster Hall – Hollow Lantern-Bearer cleared
+    if (gameState.location === "lantern_muster_hall") {
+      gameState.flags.lanternMusterFightCleared = true;
     }
 
     endCombat();
@@ -2256,7 +2316,7 @@ function handleGo(direction) {
     if (direction === "north") {
       gameState.location = "lantern_muster_hall";
       logSystem(
-        "You move past the last line of ruined bunks into a broader chamber where the garrison once gathered."
+        "You move past the last line of ruined bunks into a broader chamber hung with tattered banners."
       );
       describeLocation();
       return;
@@ -2268,9 +2328,23 @@ function handleGo(direction) {
     if (direction === "south" || direction === "back") {
       gameState.location = "broken_barracks";
       logSystem(
-        "You step away from the empty racks and return to the broken barracks."
+        "You step away from the cracked floor-map and faded banners, returning to the broken barracks."
       );
       describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      logSystem(
+        "An archway to the east is choked with fallen stone and warped iron racks. An armory waits there, but for now it’s more ruin than room."
+      );
+      return;
+    }
+
+    if (direction === "north") {
+      logSystem(
+        "A stair climbs toward a watch balcony overlooking these halls, but the steps ahead blur into unfinished stone and half-formed edges. That part of the Dawnspire isn’t ready yet."
+      );
       return;
     }
   }
