@@ -33,11 +33,12 @@ const gameState = {
     // gotVestibuleLoot: false,
     // gnawedStoreroomTrapDone: false,
     // gotStoreroomBuckler: false,
+    // gotShardNicheShard: false,
     // outerHallFirstCheck: false,
     // gotFlickerNodeLoot: false,
     // flickerShardAligned: false,
     // mirrorShardAligned: false,      // beam properly bent toward door
-    // deepNodeShardAligned: false,    // future: shard in room 10
+    // deepNodeShardAligned: false,    // shard seated in room 10
     // doorOfFailedLightOpened: false, // future: when all three beams are online
     // mirrorBeamToNiche: false,       // 9 -> beam east toward 10
     // mirrorBeamToDoor: false,        // 9 -> beam toward 8
@@ -104,8 +105,17 @@ function consumeItemByIndex(idx) {
   return item;
 }
 
+// Any lantern shard fragment in inventory?
 function playerHasLanternShard() {
-  return gameState.inventory.some((item) => item.id === "lantern-shard");
+  return gameState.inventory.some((item) => {
+    if (!item) return false;
+    const id = item.id || "";
+    const name = (item.name || "").toLowerCase();
+    return (
+      id.startsWith("lantern-shard") ||
+      name.includes("lantern shard")
+    );
+  });
 }
 
 // Equipment helpers
@@ -426,6 +436,24 @@ const locations = {
       "A few panels still pivot loosely on corroded brackets. With enough patience—and a little cruelty—you could adjust them to catch and bend any light that wanders in."
     ].join(" "),
   },
+
+  // Room 10 – Shard Niche
+  shard_niche: {
+    name: "Dawnspire – Shard Niche",
+    description: [
+      "The eastward passage tightens into a small, circular chamber where the stone feels strangely deliberate. The walls are smooth, the floor scraped flat by long-ago boots.",
+      "At the center stands a waist-high pedestal. Set into its top is another lantern fixture—mirror-backed, prismatic socket empty—and resting just beside that socket lies a narrow crystal fragment, catching every stray glimmer of light."
+    ].join(" "),
+  },
+
+  // Room 11 – Fallen Guard Post (stubbed for now)
+  fallen_guard_post: {
+    name: "Dawnspire – Fallen Guard Post",
+    description: [
+      "The passage opens into a squat chamber that still remembers the shape of vigilance. Half-toppled barricades of stone and wood choke the room, and a pair of rust-flaked spearheads jut from the debris like broken teeth.",
+      "Whatever watched this approach bled out a long time ago. The air still tastes faintly of iron and dust."
+    ].join(" "),
+  },
 };
 
 // Exits helper text for each location
@@ -453,7 +481,11 @@ const exitsByLocation = {
   door_failed_light:
     "Obvious exits: south/back – to the Outer Hall of Lanterns; north – deeper into the Dawnspire, if the door ever opens.",
   mirror_gallery:
-    "Obvious exits: south/back – to the flicker node junction; east – toward a tighter passage ending in a shard niche that you haven't quite carved into being yet.",
+    "Obvious exits: south/back – to the flicker node junction; east – into a small niche chamber cut around a lonely pedestal.",
+  shard_niche:
+    "Obvious exits: west/back – to the mirror gallery; north – toward a low chamber that feels like an old guard post.",
+  fallen_guard_post:
+    "Obvious exits: south/back – to the shard niche, where the light-work waits.",
 };
 
 function printExitsForLocation(id) {
@@ -611,7 +643,7 @@ function maybeGrantVestibuleLoot() {
   logSystem("You gain: Travel Ration, Dirty Bandage.");
 }
 
-// helper: storeroom loot (Rust-Flecked Buckler + Lantern Shard)
+// helper: storeroom loot (Rust-Flecked Buckler + Lantern Shard #1)
 function maybeGrantStoreroomBuckler() {
   if (gameState.flags.gotStoreroomBuckler) return;
   if (!gameState.flags.gnawedStoreroomTrapDone) return; // only after disturbing the bones
@@ -625,8 +657,8 @@ function maybeGrantStoreroomBuckler() {
   };
 
   const shard = {
-    id: "lantern-shard",
-    name: "Lantern Shard",
+    id: "lantern-shard-1",
+    name: "Lantern Shard (First Fragment)",
     type: "key",
   };
 
@@ -641,7 +673,7 @@ function maybeGrantStoreroomBuckler() {
   logSystem(
     "Whatever carried them last died here, but the iron still feels solid in your grip—and the shard feels conspicuously made to sit in some waiting socket."
   );
-  logSystem("You gain: Rust-Flecked Buckler, Lantern Shard.");
+  logSystem("You gain: Rust-Flecked Buckler, Lantern Shard (First Fragment).");
 
   // Auto-equip if you aren't using any shield yet
   ensureEquipment();
@@ -649,6 +681,29 @@ function maybeGrantStoreroomBuckler() {
     gameState.player.equipment.shieldId = "rust-buckler";
     logSystem("You strap the buckler onto your forearm. It feels clumsy, but better than empty air.");
   }
+}
+
+// helper: Shard Niche loot – Lantern Shard #2
+function maybeGrantShardNicheShard() {
+  if (gameState.flags.gotShardNicheShard) return;
+
+  gameState.flags.gotShardNicheShard = true;
+
+  const shard2 = {
+    id: "lantern-shard-2",
+    name: "Lantern Shard (Second Fragment)",
+    type: "key",
+  };
+
+  gameState.inventory.push(shard2);
+
+  logSystem(
+    "Up close, the crystal on the pedestal is unmistakable: another lantern shard, its facets scored as if something once tried to crush it and failed."
+  );
+  logSystem(
+    "You lift it from the cold stone. It thrums faintly in your fingers, eager for the empty socket beside it."
+  );
+  logSystem("You gain: Lantern Shard (Second Fragment).");
 }
 
 // helper: Flicker Node loot – 2–5 coins
@@ -695,7 +750,7 @@ function startVestibuleFight() {
 }
 
 // =========================
-// Use / bandage / equip / mirrors
+// Use / bandage / equip / mirrors / shards
 // =========================
 
 function useBandage(inCombat) {
@@ -804,12 +859,56 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
     gameState.flags.flickerShardAligned = true;
 
     logSystem(
-      "You fit the Lantern Shard into the empty socket. It settles with a faint, teeth-rattling click, as if the stone itself has been waiting for this exact shape."
+      "You fit a Lantern Shard into the empty socket. It settles with a faint, teeth-rattling click, as if the stone itself has been waiting for this exact shape."
     );
     logSystem(
       "A thin thread of pale light wakes inside the shard and knifes outward, catching the cracked mirror panel and throwing a ghostly beam north toward the gallery."
     );
     logSystem("The inscription beneath the lantern seems satisfied: “Light must travel.”");
+    return;
+  }
+
+  // Lantern Shard in Shard Niche – split beam
+  if (
+    (arg.includes("shard") || arg.includes("crystal")) &&
+    gameState.location === "shard_niche"
+  ) {
+    if (!playerHasLanternShard()) {
+      logSystem(
+        "Your fingers find only dust and old cuts. Whatever shard once lay here is either in your past or in somebody else’s story."
+      );
+      return;
+    }
+
+    if (gameState.flags.deepNodeShardAligned) {
+      logSystem(
+        "The shard already sits snug in the niche’s socket. Light crawls through it in slow pulses, splitting along fractures you can feel more than see."
+      );
+      return;
+    }
+
+    gameState.flags.deepNodeShardAligned = true;
+
+    const hasIncoming =
+      !!gameState.flags.flickerShardAligned &&
+      !!gameState.flags.mirrorBeamToNiche;
+
+    if (hasIncoming) {
+      logSystem(
+        "You press the shard into the waiting socket. It bites down with a tiny, hungry click as the faint beam from the gallery finds it."
+      );
+      logSystem(
+        "Light floods the crystal, fractures catching and splitting it: one thin ray knifes back toward the mirrors, the other dives down the stone toward the carved door far to the south."
+      );
+    } else {
+      logSystem(
+        "You settle a Lantern Shard into the empty socket. It accepts the shape with a soft click and a flicker of buried light."
+      );
+      logSystem(
+        "For now, the shard only hums against your palm. Whatever beam it’s meant to split hasn’t found its way here yet."
+      );
+    }
+
     return;
   }
 
@@ -882,7 +981,7 @@ function handleAdjust(rawArgs) {
     gameState.flags.mirrorShardAligned = false;
 
     logSystem(
-      "You angle a trio of still-loose panels until the beam spears away to the east, threading through a narrow gap toward a side passage you’ve yet to fully claim."
+      "You angle a trio of still-loose panels until the beam spears away to the east, threading through a narrow gap toward the niche chamber."
     );
     return;
   }
@@ -958,7 +1057,7 @@ function describeLocation() {
     if (!gameState.flags.mirrorGalleryHintShown) {
       gameState.flags.mirrorGalleryHintShown = true;
       logSystem(
-        "A few of the taller panels still pivot if you lean your weight into them. With the right angles, you could 'adjust mirrors east' to send a beam into the side passage, or 'adjust mirrors door' to bend it back toward the carved gate."
+        "A few of the taller panels still pivot if you lean your weight into them. With the right angles, you could 'adjust mirrors east' to send a beam into the niche, or 'adjust mirrors door' to bend it back toward the carved gate."
       );
     }
 
@@ -970,7 +1069,7 @@ function describeLocation() {
       );
     } else if (gameState.flags.mirrorBeamToNiche) {
       logSystem(
-        "A thin thread of light slips in from the south and catches an angled panel, then another, before knifing off to the east. The side passage drinks it in and vanishes around a bend."
+        "A thin thread of light slips in from the south and catches an angled panel, then another, before knifing off to the east. The niche drinks it in and vanishes around a bend."
       );
     } else if (gameState.flags.mirrorBeamToDoor) {
       logSystem(
@@ -979,6 +1078,34 @@ function describeLocation() {
     } else {
       logSystem(
         "A restless line of light jitters from crack to crack, never quite settling. Every tiny adjustment seems to threaten either clarity or ruin."
+      );
+    }
+  }
+
+  // special: Shard Niche – shard #2 and beam splitting
+  if (gameState.location === "shard_niche" && !gameState.combat.inCombat) {
+    maybeGrantShardNicheShard();
+
+    const hasIncoming =
+      !!gameState.flags.flickerShardAligned &&
+      !!gameState.flags.mirrorBeamToNiche;
+    const shardSeated = !!gameState.flags.deepNodeShardAligned;
+
+    if (!hasIncoming && !shardSeated) {
+      logSystem(
+        "The lantern fixture sits dark, socket empty, as if waiting for the first taste of light before it decides what to do with it."
+      );
+    } else if (!hasIncoming && shardSeated) {
+      logSystem(
+        "The seated shard glows faintly with bottled potential, fractures ready to catch any beam that finally finds its way here."
+      );
+    } else if (hasIncoming && !shardSeated) {
+      logSystem(
+        "A faint beam from the gallery sneaks in along the west wall, grazing the empty socket without quite catching. One shard away from doing something interesting."
+      );
+    } else if (hasIncoming && shardSeated) {
+      logSystem(
+        "Light threads into the seated shard and splits along its scars: one thin beam knifes back toward the mirrors, the other dives through the stone toward the heavy door to the south."
       );
     }
   }
@@ -1734,7 +1861,7 @@ function handleGo(direction) {
           "Two of the sockets flare weakly, light crawling along the carved channels on either side of the door. You hear stone shift somewhere deep within—and then lock again. The third socket stays dead. The door does not move."
         );
       } else {
-        // Future: once 7, 9, and 10 are wired, this is where the gate would actually open.
+        // Future: once 7, 9, and 10 are wired as a full gate, this is where the door would actually open.
         logSystem(
           "All three sockets thrum with buried light. The carved sunburst seems to swell, rays sharpening as lines of radiance bite along the stone. For now, though, whatever lies beyond remains unfinished—another piece of the Dawnspire still waiting to be written."
         );
@@ -1755,9 +1882,44 @@ function handleGo(direction) {
     }
 
     if (direction === "east") {
+      gameState.location = "shard_niche";
       logSystem(
-        "You peer along the eastward passage, sensing where some tighter chamber—the shard niche—ought to be. For now, that part of the Dawnspire is still more intention than stone."
+        "You follow the eastward corridor as it tightens, stone smoothing under your fingertips until it spills you into a small circular niche cut around a single pedestal."
       );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 10 – Shard Niche logic
+  if (loc === "shard_niche") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "mirror_gallery";
+      logSystem(
+        "You leave the little circle of stone and its waiting pedestal behind, slipping back toward the hall of mirrors."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north") {
+      gameState.location = "fallen_guard_post";
+      logSystem(
+        "You take the short northern passage, ducking under a sagging lintel into a low chamber that still smells faintly of old vigilance."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 11 – Fallen Guard Post logic (for now, just a connector)
+  if (loc === "fallen_guard_post") {
+    if (direction === "south" || direction === "back") {
+      gameState.location = "shard_niche";
+      logSystem(
+        "You step away from the dead barricades and slip back toward the shard-lit niche."
+      );
+      describeLocation();
       return;
     }
   }
@@ -2094,3 +2256,4 @@ window.addEventListener("DOMContentLoaded", () => {
 
   loadGameFromServer();
 });
+
