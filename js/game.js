@@ -420,6 +420,16 @@ const locations = {
       "This stretch of the Dawnspire (Zone D) feels half-formed, as if the world is still deciding what else to put here.",
     ].join(" "),
   },
+  // Room 17 — Stale Provision Cellar
+stale_provision_cellar: {
+  name: "Dawnspire – Stale Provision Cellar",
+  description: [
+    "A cool, damp chamber opens before you, air thick with the sour stink of mold and long-rotted grain. Ruined barrels slump against the walls like collapsed ribs, their staves soft and dark with age. Sacks lie split open across the floor, their contents matted into blackened clumps that squish faintly underfoot.",
+    "Against the far wall, a few wax-coated packets sit untouched by time—their surfaces beaded with condensation but otherwise intact. A rare mercy, down here.",
+    "",
+    "Exits: South back to the Broken Barracks."
+  ].join(" "),
+},
 };
 
 // Exits helper text for each location
@@ -1464,6 +1474,23 @@ function handleAdjust(rawArgs) {
     return;
   }
 }
+function maybeGrantProvisionCellarLoot() {
+  if (gameState.flags.gotProvisionCellarLoot) return;
+
+  const loc = gameState.location;
+  if (loc !== "stale_provision_cellar") return;
+
+  gameState.flags.gotProvisionCellarLoot = true;
+
+  const r1 = { id: "ration", name: "Travel Ration", type: "ration" };
+  const r2 = { id: "ration", name: "Travel Ration", type: "ration" };
+  gameState.inventory.push(r1, r2);
+
+  logSystem(
+    "You brush aside a clump of mold-eaten sacks and uncover two wax-sealed packets—miraculously untouched by time."
+  );
+  logSystem("You gain: Travel Ration (2).");
+}
 
 // Ring command – mostly for the bell
 function handleRing(rawArgs, { inCombat = false } = {}) {
@@ -1812,6 +1839,10 @@ function describeLocation() {
   if (!gameState.combat.inCombat) {
     maybeTriggerBellAmbush();
   }
+  // Loot in Room 17 – Stale Provision Cellar
+if (gameState.location === "stale_provision_cellar") {
+  maybeGrantProvisionCellarLoot();
+}
 }
 
 function handleLook() {
@@ -2697,14 +2728,14 @@ function handleGo(direction) {
       return;
     }
 
-    if (direction === "north") {
-      gameState.location = "lantern_muster_hall";
-      logSystem(
-        "You move past the last line of ruined bunks into a broader chamber hung with tattered banners."
-      );
-      describeLocation();
-      return;
-    }
+   // Room 12 – Broken Barracks → Room 17
+if (loc === "broken_barracks" && (direction === "north" || direction === "up")) {
+  gameState.location = "stale_provision_cellar";
+  logSystem("You pick your way into a cold, low chamber where the smell of rot thickens with every step.");
+  describeLocation();
+  return;
+}
+
   }
 
   // Room 13
@@ -2817,6 +2848,18 @@ function handleGo(direction) {
       return;
     }
   }
+  // Room 17 – Stale Provision Cellar logic
+if (loc === "stale_provision_cellar") {
+  if (direction === "south") {
+    gameState.location = "broken_barracks";
+    logSystem("You climb back toward the ruined bunks and toppled frames of the Broken Barracks.");
+    describeLocation();
+    return;
+  }
+
+  logSystem("Only the way south seems passable here.");
+  return;
+}
 
   logSystem("You can't go that way.");
 }
