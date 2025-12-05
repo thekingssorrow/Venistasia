@@ -1,89 +1,11 @@
-/* Venistasia — Single-file Text Adventure (browser JS)
-   Drop this entire file into your project (e.g., venistasia.js) and include it with a <script>.
-   If your HTML already has elements with these IDs, it will use them:
-     #output, #commandInput, #statusName, #statusLevel, #statusHp, #statusXp
-   Otherwise it will auto-build a simple UI.
-
-   Changes implemented (per your request):
-   - Provision Cellar loot is EXACTLY 2 rations, once.
-   - Shrine “use shard” grants +5 Max HP permanently AND heals +5 current HP (capped),
-     and also enables the “first lethal blow leaves you at 1 HP” blessing.
-   - Non-combat `use` goes through extendedUseSystem, so shrine/flicker/niche shard logic works.
-*/
-
 "use strict";
 
-// ============================================================
-// MODULE 0 — UI BOOTSTRAP (auto-create if missing)
-// ============================================================
-
-(function ensureUI() {
-  const has = (id) => document.getElementById(id);
-
-  if (!has("output") || !has("commandInput") || !has("statusName")) {
-    const style = document.createElement("style");
-    style.textContent = `
-      :root { --bg:#0f1115; --panel:#171a21; --text:#e7e9ee; --muted:#9aa3b2; --accent:#6ea8fe; --danger:#ff6b6b; }
-      body { margin:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-      .wrap { max-width: 980px; margin: 0 auto; padding: 16px; display: grid; gap: 12px; }
-      .top { background:var(--panel); border:1px solid #2a2f3b; border-radius: 16px; padding: 10px 12px; display:flex; gap: 14px; flex-wrap:wrap; }
-      .stat { color: var(--muted); font-size: 14px; }
-      .stat b { color: var(--text); font-weight: 700; }
-      .out { background:var(--panel); border:1px solid #2a2f3b; border-radius: 16px; padding: 14px; height: 62vh; overflow:auto; white-space: pre-wrap; line-height: 1.35; }
-      .line { margin: 0 0 10px 0; }
-      .line.command { color: var(--accent); }
-      .line.system { color: var(--text); }
-      .line.error { color: var(--danger); }
-      form { display:flex; gap:10px; }
-      input { flex:1; padding: 12px 14px; border-radius: 14px; border:1px solid #2a2f3b; background:#0b0d11; color:var(--text); font-size: 16px; outline:none; }
-      button { padding: 12px 14px; border-radius: 14px; border:1px solid #2a2f3b; background:#202637; color:var(--text); font-weight:700; cursor:pointer; }
-      button:hover { filter: brightness(1.05); }
-      .hint { color: var(--muted); font-size: 12px; margin-left: 2px; }
-    `;
-    document.head.appendChild(style);
-
-    const wrap = document.createElement("div");
-    wrap.className = "wrap";
-
-    const top = document.createElement("div");
-    top.className = "top";
-    top.innerHTML = `
-      <div class="stat" id="statusName"><b>Name:</b> —</div>
-      <div class="stat" id="statusLevel"><b>Level:</b> —</div>
-      <div class="stat" id="statusHp"><b>HP:</b> —</div>
-      <div class="stat" id="statusXp"><b>XP:</b> —</div>
-    `;
-
-    const out = document.createElement("div");
-    out.className = "out";
-    out.id = "output";
-
-    const form = document.createElement("form");
-    form.id = "commandForm";
-    form.innerHTML = `
-      <input id="commandInput" autocomplete="off" placeholder="Type a command (help, look, go north, inventory, use bandage, adjust mirrors east)…" />
-      <button type="submit">Enter</button>
-    `;
-
-    const hint = document.createElement("div");
-    hint.className = "hint";
-    hint.textContent = "Tip: You can type directions directly (north/south/east/west/up/down).";
-
-    wrap.appendChild(top);
-    wrap.appendChild(out);
-    wrap.appendChild(form);
-    wrap.appendChild(hint);
-    document.body.appendChild(wrap);
-  }
-})();
-
-// ============================================================
-// MODULE 1 — GAME STATE
-// ============================================================
+// =========================
+// Basic game state
+// =========================
 
 const gameState = {
-  playerId: null,
-
+  playerId: null, // will be filled from localStorage
   player: {
     name: "Adventurer",
     level: 1,
@@ -91,159 +13,91 @@ const gameState = {
     xpToLevel: 100,
     hp: 20,
     maxHp: 20,
+    equipment: {
+      weaponId: null,
+      shieldId: null,
+    },
   },
-
-  // Inventory supports duplicates (stacking) + equipment items
   inventory: [
     { id: "rusty-sword", name: "Rusty Sword", type: "weapon", atk: 1 },
     { id: "ration", name: "Travel Ration", type: "ration" },
     { id: "ration", name: "Travel Ration", type: "ration" },
   ],
-
-  equipment: {
-    weapon: "rusty-sword", // inventory item id
-    offhand: null,         // e.g. "rust-buckler"
-  },
-
   location: "village_square",
-
   flags: {
-    gotLanternBadge: false,
-
-    collapsedStairTrapDone: false,
-
-    vestibuleCombatDone: false,
-    vestibuleRatsRemaining: 0,
-    gotVestibuleLoot: false,
-
-    storeroomTrapDone: false,
-    gotStoreroomLoot: false,
-
-    flickerLootDone: false,
-    flickerShardAligned: false,
-
-    mirrorToNiche: false,
-    mirrorToDoor: false,
-
-    nicheShardTaken: false,
-    nicheShardSeated: false,
-
-    guardSpearTaken: false,
-
-    barracksCombatDone: false,
-    barracksSoldiersRemaining: 0,
-
-    musterLoreDone: false,
-    musterCombatDone: false,
-
-    armoryTrapDone: false,
-    armoryLootDone: false,
-
-    gotProvisionRations: false, // IMPORTANT: used for room 17 (provision_cellar)
-
-    shrineUsed: false,
-    shrineBlessingActive: false,
+    // filled as you play
   },
-
   combat: {
     inCombat: false,
     enemy: null,
     previousLocation: null,
-    intent: null,
+    intent: null, // what the enemy is winding up to do
   },
 };
 
-// ============================================================
-// MODULE 2 — UTILS & GENERIC HELPERS
-// ============================================================
+// =========================
+// Utility: player ID
+// =========================
 
-// --- Player ID + Save/Load ---
 function getOrCreatePlayerId() {
   const key = "venistasia_player_id";
   let id = localStorage.getItem(key);
   if (!id) {
-    id = crypto?.randomUUID ? crypto.randomUUID() : ("P-" + Math.random().toString(36).slice(2));
+    if (window.crypto && crypto.randomUUID) {
+      id = "P-" + crypto.randomUUID();
+    } else {
+      id = "P-" + Math.random().toString(36).slice(2);
+    }
     localStorage.setItem(key, id);
   }
   return id;
 }
 
-function getSaveKey() {
-  return `venistasia_save_${gameState.playerId || "unknown"}`;
-}
-
-function deepClone(obj) {
-  return JSON.parse(JSON.stringify(obj));
-}
-
-function saveNow() {
-  try {
-    localStorage.setItem(getSaveKey(), JSON.stringify(gameState));
-  } catch (e) {
-    logError("Saving failed (storage full or blocked).");
-    console.error(e);
-  }
-}
-
-let __saveTimer = null;
-function scheduleSave() {
-  if (__saveTimer) clearTimeout(__saveTimer);
-  __saveTimer = setTimeout(saveNow, 250);
-}
-
-function loadSaveIfExists() {
-  try {
-    const raw = localStorage.getItem(getSaveKey());
-    if (!raw) return false;
-    const parsed = JSON.parse(raw);
-
-    // Merge into current structure (so future fields still exist)
-    const merged = deepClone(gameState);
-    Object.assign(merged, parsed);
-
-    // Nested merges
-    merged.player = Object.assign(deepClone(gameState.player), parsed.player || {});
-    merged.equipment = Object.assign(deepClone(gameState.equipment), parsed.equipment || {});
-    merged.flags = Object.assign(deepClone(gameState.flags), parsed.flags || {});
-    merged.combat = Object.assign(deepClone(gameState.combat), parsed.combat || {});
-    merged.inventory = Array.isArray(parsed.inventory) ? parsed.inventory : deepClone(gameState.inventory);
-
-    // Apply merged -> gameState (by mutation to keep references predictable)
-    Object.assign(gameState, merged);
-    return true;
-  } catch (e) {
-    logError("Save data was corrupted; starting fresh.");
-    console.error(e);
-    return false;
-  }
-}
-
-// --- RNG helpers ---
+// Simple RNG helper
 function roll(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function pickOne(arr) {
-  if (!arr || !arr.length) return "";
+function pickLine(arr) {
   return arr[roll(0, arr.length - 1)];
 }
 
-// --- Inventory helpers ---
-function findItemIndexById(id) {
-  return gameState.inventory.findIndex((i) => i && i.id === id);
+// =========================
+// Output helpers (preserve \n even if CSS doesn't)
+// =========================
+
+function appendOutputBlock(text, className, prefixFirstLine = "") {
+  const str = String(text ?? "");
+  if (!outputEl) {
+    console.log(`[${className.toUpperCase()}]`, str);
+    return;
+  }
+  const lines = str.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const lineEl = document.createElement("div");
+    lineEl.className = `output-line ${className}`;
+    lineEl.textContent = (i === 0 ? prefixFirstLine : "") + lines[i];
+    outputEl.appendChild(lineEl);
+  }
+  outputEl.scrollTop = outputEl.scrollHeight;
 }
-function playerHasItem(id) {
-  return findItemIndexById(id) !== -1;
+
+function logSystem(text) {
+  appendOutputBlock(text, "system");
 }
-function consumeItemById(id) {
-  const idx = findItemIndexById(id);
-  if (idx === -1) return false;
-  gameState.inventory.splice(idx, 1);
-  return true;
+
+function logCommand(text) {
+  appendOutputBlock(text, "command", "> ");
 }
+
+// =========================
+// Simple inventory helpers
+// =========================
+
 function findItemIndexByType(type) {
-  return gameState.inventory.findIndex((i) => i && i.type === type);
+  return gameState.inventory.findIndex((item) => item.type === type);
 }
+
 function consumeItemByType(type) {
   const idx = findItemIndexByType(type);
   if (idx === -1) return false;
@@ -251,778 +105,1814 @@ function consumeItemByType(type) {
   return true;
 }
 
-function getItemById(id) {
-  return gameState.inventory.find((i) => i && i.id === id) || null;
+// Extra inventory helpers for "use" system
+function findItemIndexByNameFragment(fragment) {
+  const lower = fragment.toLowerCase();
+  return gameState.inventory.findIndex((item) =>
+    (item.name || "").toLowerCase().includes(lower)
+  );
 }
 
-// --- Equipment helpers ---
-function ensureEquipment() {
-  // Ensure equipped weapon exists; if not, equip first available weapon
-  const weaponId = gameState.equipment.weapon;
-  if (weaponId && playerHasItem(weaponId)) return;
+function consumeItemByIndex(idx) {
+  if (idx < 0 || idx >= gameState.inventory.length) return null;
+  const [item] = gameState.inventory.splice(idx, 1);
+  return item;
+}
 
-  const firstWeapon = gameState.inventory.find((i) => i.type === "weapon");
-  gameState.equipment.weapon = firstWeapon ? firstWeapon.id : null;
+// Grouped inventory (used by inventory list and numeric use/equip)
+function getGroupedInventory() {
+  const grouped = new Map();
+  for (const item of gameState.inventory) {
+    const key = item?.id || item?.name;
+    if (!key) continue;
+    if (!grouped.has(key)) grouped.set(key, { item, count: 0 });
+    grouped.get(key).count++;
+  }
+  return Array.from(grouped.values());
+}
+
+// Any lantern shard fragment in inventory?
+function playerHasLanternShard() {
+  return gameState.inventory.some((item) => {
+    if (!item) return false;
+    const id = item.id || "";
+    const name = (item.name || "").toLowerCase();
+    return id.startsWith("lantern-shard") || name.includes("lantern shard");
+  });
+}
+
+// Equipment helpers
+function ensureEquipment() {
+  if (!gameState.player) gameState.player = {};
+  if (!gameState.player.equipment) {
+    gameState.player.equipment = { weaponId: null, shieldId: null };
+  }
 }
 
 function getEquippedWeapon() {
   ensureEquipment();
-  const id = gameState.equipment.weapon;
-  return id ? getItemById(id) : null;
-}
-
-function isShieldEquipped(id) {
-  return gameState.equipment.offhand === id;
-}
-function isWeaponEquipped(id) {
-  const w = getEquippedWeapon();
-  return !!w && w.id === id;
-}
-
-// ============================================================
-// MODULE 2B — LOGGING + STATUS BAR
-// ============================================================
-
-let outputEl = null;
-let statusNameEl = null, statusLevelEl = null, statusHpEl = null, statusXpEl = null;
-
-function initUIRefs() {
-  outputEl = document.getElementById("output");
-  statusNameEl = document.getElementById("statusName");
-  statusLevelEl = document.getElementById("statusLevel");
-  statusHpEl = document.getElementById("statusHp");
-  statusXpEl = document.getElementById("statusXp");
-}
-
-function appendLine(text, cls) {
-  if (!outputEl) {
-    console.log(text);
-    return;
+  const eqId = gameState.player.equipment.weaponId;
+  if (eqId) {
+    const found = gameState.inventory.find((i) => i.id === eqId);
+    if (found) return found;
   }
-  const el = document.createElement("div");
-  el.className = `line ${cls || "system"}`;
-  el.textContent = text;
-  outputEl.appendChild(el);
-  outputEl.scrollTop = outputEl.scrollHeight;
+  return gameState.inventory.find((i) => i.type === "weapon") || null;
 }
 
-function logSystem(text) {
-  appendLine(text, "system");
+// =========================
+// Input normalization
+// =========================
+
+function normalizeWord(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "");
 }
-function logCommand(text) {
-  appendLine("> " + text, "command");
+
+function normalizeDirection(dir) {
+  const d = normalizeWord(dir).replace(/\s+/g, "");
+  if (!d) return "";
+  const map = {
+    n: "north",
+    north: "north",
+    s: "south",
+    south: "south",
+    e: "east",
+    east: "east",
+    w: "west",
+    west: "west",
+    u: "up",
+    up: "up",
+    d: "down",
+    down: "down",
+    f: "forward",
+    forward: "forward",
+    b: "back",
+    back: "back",
+  };
+  return map[d] || d;
 }
-function logError(text) {
-  appendLine(text, "error");
-}
+
+// =========================
+// Combat flavor text
+// =========================
+
+const combatFlavor = {
+  player: {
+    normal: {
+      beast: [
+        "You hack into the {name}, fur and flesh tearing under your swing.",
+        "Your blade bites into the {name}, opening a ragged line of red.",
+      ],
+      humanoid: [
+        "You smash your weapon into the {name}'s ribs.",
+        "You drive your blade into the {name}'s side, hot blood soaking your hands.",
+      ],
+      caster: [
+        "You cut through trailing cloth and flesh as the {name} fumbles a spell.",
+        "Your weapon bites into the {name}'s side, scattering ash-stained fabric and blood.",
+      ],
+    },
+    crit: {
+      beast: [
+        "Your swing connects with the {name}'s neck. CRITICAL HIT.",
+        "You bring your weapon down and split the {name}'s skull. CRITICAL HIT.",
+      ],
+      humanoid: [
+        "Your weapon caves in the {name}'s skull. CRITICAL HIT.",
+        "You drive your blade up beneath the {name}'s jaw. CRITICAL HIT.",
+      ],
+      caster: [
+        "You drive your weapon straight through the {name}'s chest. CRITICAL HIT.",
+        "Your strike shears off the {name}'s casting hand. CRITICAL HIT.",
+      ],
+    },
+  },
+
+  enemy: {
+    normal: {
+      beast: [
+        "The {name} sinks its teeth into your arm.",
+        "The {name} rakes claws across your side.",
+      ],
+      humanoid: [
+        "The {name}'s weapon crunches into your ribs.",
+        "The {name} drives a blade across your chest.",
+      ],
+      caster: [
+        "A jagged bolt of force slams into your chest.",
+        "The {name}'s spell burns across your arm.",
+      ],
+    },
+    crit: {
+      beast: [
+        "The {name} latches onto your throat. CRITICAL WOUND.",
+        "The {name} tears a mouthful from your face. CRITICAL WOUND.",
+      ],
+      humanoid: [
+        "The {name}'s weapon crushes into your skull. CRITICAL WOUND.",
+        "The {name} drives steel deep into your chest. CRITICAL WOUND.",
+      ],
+      caster: [
+        "The {name}'s spell erupts inside your chest. CRITICAL WOUND.",
+        "A lance of warped light punches through your shoulder. CRITICAL WOUND.",
+      ],
+    },
+  },
+};
+
+// =========================
+// DOM references
+// =========================
+
+let outputEl,
+  formEl,
+  inputEl,
+  saveIndicatorEl,
+  statusNameEl,
+  statusLevelEl,
+  statusHpEl,
+  statusXpEl;
+
+// =========================
+// UI helpers
+// =========================
 
 function updateStatusBar() {
-  const p = gameState.player;
   if (!statusNameEl) return;
-  statusNameEl.innerHTML = `<b>Name:</b> ${p.name}`;
-  statusLevelEl.innerHTML = `<b>Level:</b> ${p.level}`;
-  statusHpEl.innerHTML = `<b>HP:</b> ${p.hp}/${p.maxHp}`;
-  statusXpEl.innerHTML = `<b>XP:</b> ${p.xp}/${p.xpToLevel}`;
+  const p = gameState.player;
+  statusNameEl.textContent = `Name: ${p.name}`;
+  statusLevelEl.textContent = `Level: ${p.level}`;
+  statusHpEl.textContent = `HP: ${p.hp}/${p.maxHp}`;
+  statusXpEl.textContent = `XP: ${p.xp}/${p.xpToLevel}`;
 }
 
-// ============================================================
-// MODULE 3 — WORLD DATA (17 ROOMS)
-// ============================================================
+// =========================
+// World + locations
+// =========================
 
 const locations = {
-  // OUTSIDE WORLD
   village_square: {
     name: "Briar's Edge, Village Square",
     description: [
-      "You stand in the cramped heart of Briar's Edge, a frontier village held together by splinters, rope, and desperation.",
-      "Posters promising glory inside the 'Dawnspire Below' flap on a warped notice board.",
-      "North lies the Shaded Frontier — a wall of trees waiting to swallow you."
+      "You stand in the cramped heart of Briar's Edge, a frontier village nailed together from weather-beaten timber and old promises.",
+      "Beyond the last sagging rooftops to the north, the Shaded Frontier begins in a hard, dark line of trees.",
     ].join(" "),
-    exits: ["north"],
   },
 
   dark_forest_edge: {
     name: "Forest Edge",
     description: [
-      "The dirt road frays into mud and tangled roots as the forest tightens around you.",
-      "The air grows colder, heavier, dragging rot, iron, and wet leaves.",
-      "To the north: the scar in the earth known as the Dawnspire.",
-      "To the south: the last safety Briar’s Edge can pretend to offer."
+      "The road from Briar's Edge dissolves into churned mud and exposed roots as the forest takes over.",
+      "Somewhere deeper in, the quake-torn clearing and the Dawnspire wait.",
     ].join(" "),
-    exits: ["north", "south"],
   },
 
   dungeon_entrance: {
     name: "Dawnspire – Broken Ring",
     description: [
-      "A ring of shattered stone encircles a gaping hole in the ground.",
-      "Leaning pillars tilt like gravemarkers around a spiral stair that winds into breathless dark.",
-      "Scrapes in the dust show where others descended. None show return."
+      "The trees fall away into a raw wound in the earth where the ground has split and slumped, exposing a ring of ancient stone.",
+      "Rough steps spiral downward into a throat of cold, unmoving darkness.",
     ].join(" "),
-    exits: ["south", "down"],
   },
 
-  // FLOOR 1 — ROOM 1
+  // Room 1 – Broken Ring Descent
   broken_ring_descent: {
-    name: "Broken Ring Descent",
+    name: "Dawnspire – Broken Ring Descent",
     description: [
-      "The spiral stair narrows sharply, slick with cold seepage.",
-      "Strange veins of pale green lichen pulse faintly in the cracks, throwing warped shadows.",
-      "Footsteps echo strangely — always one more than you make."
+      "The spiral stairs descend from the surface. The walls are slick with seepage and faintly glowing lichen.",
+      "The air is colder the deeper you go, as if this place has been holding its breath for a very long time.",
     ].join(" "),
-    exits: ["up", "down"],
   },
 
-  // ROOM 2
+  // Room 2 – Cracked Landing
   cracked_landing: {
-    name: "Cracked Landing",
+    name: "Dawnspire – Cracked Landing",
     description: [
-      "A claustrophobic landing where fractured stone juts from walls and floor.",
-      "Dust showers drift from above with every groan of ancient stone.",
-      "A faint memory of daylight lingers up the shaft behind you… for now."
+      "The stairs spill out onto a cramped stone landing littered with fresh rubble.",
+      "Looking back up, you can still see a pale suggestion of light far above.",
     ].join(" "),
-    exits: ["up", "down"],
   },
 
-  // ROOM 3
+  // Room 3 – Collapsed Stairwell
   collapsed_stairwell: {
-    name: "Collapsed Stairwell",
+    name: "Dawnspire – Collapsed Stairwell",
     description: [
-      "The stair twists around a throat of rubble where the upper descent has collapsed completely.",
-      "Dust spirals in the stale air like ash caught mid-fall.",
-      "The stone ahead slopes downward again — narrower, meaner, hungrier."
+      "The stairwell here buckles around a mound of fallen stone.",
+      "Above, a plug of shattered blocks chokes the way up; below, the stairs continue into deeper dark.",
     ].join(" "),
-    exits: ["up", "down"],
   },
 
-  // ROOM 4
+  // Room 4 – Rat-gnawed Vestibule
   rat_gnawed_vestibule: {
-    name: "Rat-Gnawed Vestibule",
+    name: "Dawnspire – Rat-gnawed Vestibule",
     description: [
-      "A wedge-shaped chamber chewed bare by countless teeth.",
-      "Bedroll scraps fuse to the floor in moldy tatters, beside a snapped spear haft and stains that never dried clean.",
-      "Thin tunnels web the walls — whatever dug them is probably still near."
+      "The stair spills into a low chamber where stone has been gnawed and worried at the edges.",
+      "Chewed-open tunnels vein the lower masonry. The remains of an old camp slump against one wall.",
     ].join(" "),
-    exits: ["west", "east", "north"],
   },
 
-  // ROOM 5
+  // Room 5 – Gnawed Storeroom
   gnawed_storeroom: {
-    name: "Gnawed Storeroom",
+    name: "Dawnspire – Gnawed Storeroom",
     description: [
-      "Collapsed shelves lean drunkenly against the walls.",
-      "Torn sacks spill rotten grain into heaps crawling with tiny pale insects.",
-      "Bones — small and large — scatter the floor in chaotic piles."
+      "A low arch opens into what was once a storeroom. Shelves have collapsed into rotten heaps.",
+      "Torn sacks spill long-mummified grain and a carpet of small bones that crack under every step.",
     ].join(" "),
-    exits: ["west"],
   },
 
-  // ROOM 6
-  outer_lantern_hall: {
-    name: "Outer Hall of Lanterns",
+  // Room 6 – Outer Hall of Lanterns
+  outer_hall_lanterns: {
+    name: "Dawnspire – Outer Hall of Lanterns",
     description: [
-      "A long corridor lined with broken sconces and cracked stone lanterns.",
-      "Indentations in the walls suggest places where warm crystal light once burned.",
-      "Now only dust and silence remain — but the layout whispers of alignments."
+      "A long hall runs north and east, lined with broken sconces and cracked stone lanterns.",
+      "A few intact sconces remain: shallow cups shaped to cradle something prismatic, now empty.",
     ].join(" "),
-    exits: ["south", "east", "north"],
   },
 
-  // ROOM 7
+  // Room 7 – Flicker Node
   flicker_node: {
-    name: "Flicker Node",
+    name: "Dawnspire – Flicker Node",
     description: [
-      "A small chamber where a fractured mirror panel leans precariously in its frame.",
-      "A single lantern fixture sits inset into the wall — untouched by time.",
-      "Carved beneath it: “Light must travel.”"
+      "The hall cinches into a small junction chamber, ceiling low and air close with dust.",
+      "A single lantern fixture survives on the far wall, mirror-backed with an empty prismatic socket.",
     ].join(" "),
-    exits: ["west", "north"],
   },
 
-  // ROOM 8
-  failed_light_door: {
-    name: "Door of Failed Light",
+  // Room 8 – Door of Failed Light
+  door_failed_light: {
+    name: "Dawnspire – Door of Failed Light",
     description: [
-      "A heavy stone door stands sealed, carved with a fractured sunburst.",
-      "Three dull crystal sockets crown the frame, dead and waiting.",
-      "Etched beneath the dust: “Lanterns failed. Stones fell. Light must bend to pass.”"
+      "The hall terminates in a heavy stone door carved with a fractured sunburst.",
+      "Above it, three dull crystal sockets wait, lines in the stone leading back along the walls.",
+      "Chiseled below: “Lanterns failed. Stones fell. Light must bend to pass.”",
     ].join(" "),
-    exits: ["south"],
   },
 
-  // ROOM 9
+  // Room 9 – Mirror Gallery
   mirror_gallery: {
-    name: "Mirror Gallery",
+    name: "Dawnspire – Mirror Gallery",
     description: [
-      "A tight hall lined with tarnished mirror panels, their surfaces cracked into branching veins.",
-      "Some look adjustable — rotated on rusted pivots.",
-      "Faint scratches on the floor trace paths of reflected light."
+      "A narrow hall ribbed with tall mirror panels, most cracked or clouded.",
+      "Some still pivot loosely on corroded brackets, ready to catch and bend any light.",
     ].join(" "),
-    exits: ["south", "east"],
   },
 
-  // ROOM 10
+  // Room 10 – Shard Niche
   shard_niche: {
-    name: "Shard Niche",
+    name: "Dawnspire – Shard Niche",
     description: [
-      "A circular alcove containing a stone pedestal.",
-      "Resting atop it is a lantern fixture — intact — and a shard of prismatic crystal pulsing faintly.",
-      "Dust patterns on the floor suggest beams once converged here."
+      "The passage tightens into a small circular chamber with walls smoothed by long-ago hands.",
+      "At the center stands a pedestal with a lantern fixture. Beside its empty socket lies a narrow crystal shard.",
     ].join(" "),
-    exits: ["west", "north"],
   },
 
-  // ROOM 11
+  // Room 11 – Fallen Guard Post
   fallen_guard_post: {
-    name: "Fallen Guard Post",
+    name: "Dawnspire – Fallen Guard Post",
     description: [
-      "An overturned table, shattered spears, and a cracked warning bell hang in stale air.",
-      "Scraped drag-marks vanish under a collapsed beam.",
-      "A soldier once stood watch here — poorly, by the look of it."
+      "A cramped room that still remembers the shape of vigilance.",
+      "An overturned table leans like a failed barricade; rusted spears lie scattered.",
+      "From a cracked bracket near the ceiling hangs a split iron bell, heavy and mute.",
     ].join(" "),
-    exits: ["south", "east"],
   },
 
-  // ROOM 12
+  // Room 12 – Broken Barracks
   broken_barracks: {
-    name: "Broken Barracks",
+    name: "Dawnspire – Broken Barracks",
     description: [
-      "Rotting bunks sag into a floor split by a narrow fissure.",
-      "Blankets lie fossilized in grime. A few skeletal remains curl against footlockers long since pried open.",
-      "The air tastes of old dust and something stranger — secrets left to ferment in the dark."
+      "The stone opens into a longer chamber that once served as a bunk room for the garrison.",
+      "Two rows of bunk frames lean at sick angles, half of them half-slid into a black fissure that splits the floor.",
+      "Rotted bedding clings to splintered boards like molted skins. Footlockers lie smashed open, contents long since looted or ground into dust.",
     ].join(" "),
-    exits: ["west", "north"],
   },
 
-  // ROOM 13
+  // Room 13 – Lantern Muster Hall
   lantern_muster_hall: {
-    name: "Lantern Muster Hall",
+    name: "Dawnspire – Lantern Muster Hall",
     description: [
-      "A wide hall choked with tattered banners depicting lantern-bearing warriors.",
-      "A cracked stone floor-map dominates the center, showing three concentric rings descending deeper.",
-      "Time has scraped away names and symbols — but intent remains etched in the silence."
+      "A broader chamber opens here, wider than the barracks, its ceiling held aloft by squat stone pillars veined with old soot.",
+      "Faded banners hang in ragged strips from iron rings, each bearing a stylized lantern picked out in flaking gold thread.",
+      "At the room’s center, the flagstones give way to a cracked stone relief-map of the Dawnspire itself—three concentric rings etched into the floor, shattered by jagged fault-lines.",
     ].join(" "),
-    exits: ["south", "east", "north"],
   },
 
-  // ROOM 14
+  // Room 14 – Armory of Dust
   armory_of_dust: {
-    name: "Armory of Dust",
+    name: "Dawnspire – Armory of Dust",
     description: [
-      "Weapon racks crumbled into piles of reddish flakes.",
-      "A few serviceable relics remain — preserved by luck or forgotten craft.",
-      "A collapsed rack against the far wall looks… suspiciously hollow."
+      "Weapon racks stand in leaning rows, their hooks hung with shapes that were once steel and are now little more than red-brown flakes.",
+      "Every breath disturbs a skin of rust on the floor, sending tiny metallic ghosts swirling in the lantern-light.",
+      "Here and there, something has survived: a few intact blades, a handful of shield-bosses, and one sword that looks almost too perfect for this graveyard.",
     ].join(" "),
-    exits: ["west", "east"],
   },
 
-  // ROOM 16 (accessible from armory east)
-  hidden_shrine: {
-    name: "Hidden Shrine to the Flame",
-    description: [
-      "A secret circular chamber. At its center stands an untouched Lantern Knight statue, hands cupped as if waiting to cradle fire.",
-      "The silence here is deeper — reverent — a pocket of memory preserved from whatever consumed the rest of the Dawnspire."
-    ].join(" "),
-    exits: ["west"],
-  },
-
-  // ROOM 15
+  // Room 15 – Watch Balcony
   watch_balcony: {
-    name: "Watch Balcony",
+    name: "Dawnspire – Watch Balcony",
     description: [
-      "A narrow overlook juts above a yawning black chasm.",
-      "You can sense water somewhere far below — dripping, echoing like slow footsteps.",
-      "Carved into the parapet: “They will climb after us. We must break the way back.”"
+      "A narrow stone balcony juts out over a vast dark hollow, its parapet cracked and bowed outward over nothing.",
+      "Far below, you can just make out the glimmer of black water and the ghost-lines of walkways skirting a buried cistern.",
+      "A narrow stair curls down along the eastern wall, clinging to the stone like something afraid to let go.",
     ].join(" "),
-    exits: ["south", "east"],
   },
 
-  // ROOM 17
-  provision_cellar: {
-    name: "Stale Provision Cellar",
+  // Room 16 – Hidden Shrine to the Flame (Secret Room)
+  hidden_shrine_flame: {
+    name: "Dawnspire – Hidden Shrine to the Flame",
     description: [
-      "A cool chamber of broken barrels and mold-soft sacks.",
-      "Most food here spoiled decades ago, reduced to pale mulch and drifting spores.",
-      "But not everything has rotted — some wax-sealed packets remain intact on a toppled crate."
+      "You squeeze out of the crawl into a small circular chamber carved smooth and close.",
+      "At its center stands an intact statue of a Lantern Knight, stone cloak swept back, one gauntleted hand held out as if offering or asking.",
+      "Nestled in the statue’s other hand burns a crystal flame—pale, steady, and somehow untouched by dust.",
     ].join(" "),
-    exits: ["south"],
+  },
+
+  // Room 18 – Upper Cistern Walk (stub for Zone D)
+  upper_cistern_walk: {
+    name: "Dawnspire – Upper Cistern Walk",
+    description: [
+      "A narrow ledge clings to the side of a massive cistern wall, slick stone dropping away into dark water below.",
+      "The air is cold and wet; the sound of slow, heavy dripping echoes from unseen depths.",
+      "This stretch of the Dawnspire (Zone D) feels half-formed, as if the world is still deciding what else to put here.",
+    ].join(" "),
   },
 };
 
-// ============================================================
-// MODULE 4 — MOVEMENT + ROOM ENTRY + TRIGGERS
-// ============================================================
+// Exits helper text for each location
+const exitsByLocation = {
+  village_square:
+    "Obvious exits: north – toward the Shaded Frontier and the Dawnspire rumors.",
+  dark_forest_edge:
+    "Obvious exits: south – back to Briar's Edge; north – to the quake-torn clearing and the stone ring.",
+  dungeon_entrance:
+    "Obvious exits: south – back to the forest edge; down – into the Broken Ring Descent.",
+  broken_ring_descent:
+    "Obvious exits: up – back to the stone ring; down – deeper to the cracked landing.",
+  cracked_landing:
+    "Obvious exits: up – back toward the Broken Ring Descent; down/forward – into the warped stairwell below.",
+  collapsed_stairwell:
+    "Obvious exits: up – back to the cracked landing; down/forward – into the rat-gnawed chamber.",
+  rat_gnawed_vestibule:
+    "Obvious exits: west/back – toward the twisted stairwell; east – into a gnawed storeroom; north – into the Outer Hall of Lanterns.",
+  gnawed_storeroom:
+    "Obvious exits: west/back – through the low arch into the rat-gnawed vestibule.",
+  outer_hall_lanterns:
+    "Obvious exits: south – back to the rat-gnawed vestibule; east – toward a flickering node of old power; north – to a sealed Door of Failed Light.",
+  flicker_node:
+    "Obvious exits: west/back – to the Outer Hall of Lanterns; north – into a gallery of cracked mirrors.",
+  door_failed_light:
+    "Obvious exits: south/back – to the Outer Hall of Lanterns; north – deeper into the Dawnspire, if the door ever opens.",
+  mirror_gallery:
+    "Obvious exits: south/back – to the flicker node junction; east – into a small niche chamber cut around a lonely pedestal.",
+  shard_niche:
+    "Obvious exits: west/back – to the mirror gallery; north – toward a cramped guard post with an overturned table and a cracked bell.",
+  fallen_guard_post:
+    "Obvious exits: south/back – to the shard niche; east – into a longer chamber lined with ruined bunks.",
+  broken_barracks:
+    "Obvious exits: west/back – to the fallen guard post; north – into a broader hall where lantern-bearers once gathered.",
+  lantern_muster_hall:
+    "Obvious exits: south/back – to the broken barracks; east – into an old armory; north – up to a watch balcony over the chasm.",
+  armory_of_dust:
+    "Obvious exits: west/back – to the Lantern Muster Hall; east – a low, shadowed gap in the racks (if you’ve found it).",
+  watch_balcony:
+    "Obvious exits: south – back down into the Lantern Muster Hall; east/down – along a narrow stair to an upper cistern walk.",
+  hidden_shrine_flame:
+    "Obvious exits: west/back – crawl back through the tight passage to the Armory of Dust.",
+  upper_cistern_walk:
+    "Obvious exits: west/up – back along the narrow stair to the watch balcony.",
+};
 
-function enterRoom(id) {
-  gameState.location = id;
-  const loc = locations[id];
-  logSystem(`${loc.name}\n${loc.description}`);
-
-  handleRoomTriggers(id);
-
-  if (loc.exits && loc.exits.length) {
-    logSystem("Exits: " + loc.exits.join(", "));
-  } else {
-    logSystem("Exits: (none)");
-  }
-
-  scheduleSave();
+function printExitsForLocation(id) {
+  const text = exitsByLocation[id];
+  if (text) logSystem(text);
 }
 
-function handleRoomTriggers(id) {
-  switch (id) {
-    case "cracked_landing":
-      if (!gameState.flags.gotLanternBadge) {
-        gameState.flags.gotLanternBadge = true;
-        gameState.inventory.push({ id: "lantern-badge", name: "Lantern Knight’s Badge", type: "key" });
-        logSystem("Half-buried in rubble, you pull free an old Lantern Knight’s Badge.");
-      }
-      break;
-
-    case "collapsed_stairwell":
-      if (!gameState.flags.collapsedStairTrapDone) runFallingStoneTrap();
-      break;
-
-    case "rat_gnawed_vestibule":
-      if (!gameState.flags.vestibuleCombatDone) {
-        startVestibuleFight();
-      } else {
-        maybeVestibuleLoot();
-      }
-      break;
-
-    case "gnawed_storeroom":
-      if (!gameState.flags.storeroomTrapDone) {
-        runRatPileTrap();
-      } else {
-        maybeStoreroomLoot();
-      }
-      break;
-
-    case "flicker_node":
-      if (!gameState.flags.flickerLootDone) {
-        gameState.flags.flickerLootDone = true;
-        const c = roll(2, 5);
-        for (let i = 0; i < c; i++) gameState.inventory.push({ id: "coin", type: "coin", name: "Dawnspire Coin" });
-        logSystem(`You find ${c} tarnished Dawnspire Coins near the lantern base.`);
-      }
-      if (gameState.flags.flickerShardAligned) {
-        logSystem("A thin beam of crystal light threads north toward the mirror hall.");
-      }
-      break;
-
-    case "mirror_gallery":
-      describeMirrorState();
-      break;
-
-    case "shard_niche":
-      maybeTakeNicheShard();
-      describeShardNicheState();
-      break;
-
-    case "fallen_guard_post":
-      maybeGuardSpear();
-      break;
-
-    case "broken_barracks":
-      if (!gameState.flags.barracksCombatDone) startBarracksFight();
-      break;
-
-    case "lantern_muster_hall":
-      if (!gameState.flags.musterLoreDone) {
-        gameState.flags.musterLoreDone = true;
-        logSystem("A cracked floor-map shows three descending rings: 'THREE RINGS BELOW — AND MORE BENEATH THAT.'");
-      }
-      if (!gameState.flags.musterCombatDone) startLanternBearerFight();
-      break;
-
-    case "armory_of_dust":
-      runArmoryTrap();
-      break;
-
-    case "hidden_shrine":
-      describeShrineState();
-      break;
-
-    case "provision_cellar":
-      maybeProvisionCellarLoot(); // (implemented exactly as you asked)
-      break;
-  }
+// helper: stairs collapse message
+function reportStairsCollapsed() {
+  logSystem(
+    "Stone and dust fill the stairwell above. Whatever daylight once lived up there is gone."
+  );
 }
 
-function goDirection(dir) {
-  const loc = locations[gameState.location];
-  if (!loc?.exits?.includes(dir)) {
-    logSystem("You can't go that way.");
-    return;
-  }
+// helper: landing loot
+function maybeGrantLanternBadge() {
+  if (gameState.flags.gotLanternBadge) return;
 
-  // World transitions (explicit map)
-  const transitions = {
-    "village_square": { north: "dark_forest_edge" },
-    "dark_forest_edge": { south: "village_square", north: "dungeon_entrance" },
-    "dungeon_entrance": { south: "dark_forest_edge", down: "broken_ring_descent" },
-    "broken_ring_descent": { up: "dungeon_entrance", down: "cracked_landing" },
-    "cracked_landing": { up: "broken_ring_descent", down: "collapsed_stairwell" },
-    "collapsed_stairwell": { up: "cracked_landing", down: "rat_gnawed_vestibule" },
-    "rat_gnawed_vestibule": { west: "collapsed_stairwell", east: "gnawed_storeroom", north: "outer_lantern_hall" },
-    "gnawed_storeroom": { west: "rat_gnawed_vestibule" },
-    "outer_lantern_hall": { south: "rat_gnawed_vestibule", east: "flicker_node", north: "failed_light_door" },
-    "flicker_node": { west: "outer_lantern_hall", north: "mirror_gallery" },
-    "failed_light_door": { south: "outer_lantern_hall" },
-    "mirror_gallery": { south: "flicker_node", east: "shard_niche" },
-    "shard_niche": { west: "mirror_gallery", north: "fallen_guard_post" },
-    "fallen_guard_post": { south: "shard_niche", east: "broken_barracks" },
-    "broken_barracks": { west: "fallen_guard_post", north: "lantern_muster_hall" },
-    "lantern_muster_hall": { south: "broken_barracks", east: "armory_of_dust", north: "watch_balcony" },
-    "armory_of_dust": { west: "lantern_muster_hall", east: "hidden_shrine" },
-    "hidden_shrine": { west: "armory_of_dust" },
-    "watch_balcony": { south: "lantern_muster_hall", east: "provision_cellar" },
-    "provision_cellar": { south: "watch_balcony" },
+  gameState.flags.gotLanternBadge = true;
+  const badge = {
+    id: "lantern-knight-badge",
+    name: "Lantern Knight’s Badge",
+    type: "key",
   };
+  gameState.inventory.push(badge);
 
-  const t = transitions[gameState.location];
-  const dest = t?.[dir];
-  if (!dest) {
-    logSystem("You can't go that way.");
-    return;
-  }
-
-  // combat safety
-  if (gameState.combat?.inCombat) {
-    logSystem("You're a little busy not dying right now. Try 'attack', 'block', or 'run'.");
-    return;
-  }
-
-  enterRoom(dest);
+  logSystem(
+    "Half-buried in the rubble, your fingers close on something cold and worked: a small badge stamped with a stylized lantern."
+  );
+  logSystem("You take the Lantern Knight’s Badge.");
 }
 
-// ============================================================
-// MODULE 4B — TRAPS + LOOT
-// ============================================================
+// ===== Trap death helper =====
+function handleTrapDeath(trapKey) {
+  let lines;
+  switch (trapKey) {
+    case "collapsed_stair_rock":
+      lines = [
+        "Stone shears free above. A block the size of your chest slams into you. There is a crack, a flash, and then nothing.",
+      ];
+      break;
+    case "gnawed_rats":
+      lines = [
+        "The bone-drift erupts under your feet in a living tide of teeth. You go down screaming into the swarm.",
+      ];
+      break;
+    case "mirror_flash":
+      lines = [
+        "Light ricochets between mirrors and hits your eyes full-on. White pain tears through your skull and never quite lets go.",
+      ];
+      break;
+    case "barracks_collapse":
+      lines = [
+        "The bunk gives way under your weight. You fall with it into the fissure, stone and splintered wood slamming you into the dark.",
+      ];
+      break;
+    case "armory_rust_cloud":
+      lines = [
+        "You grab the perfect blade and it explodes into dust in your hands. Rust floods your eyes and mouth as your lungs seize and everything goes hard and black.",
+      ];
+      break;
+    case "watch_fall":
+      lines = [
+        "Stone gives way under your grip. You pitch forward with the railing, falling into the hollow below.",
+        "The rush of air rips any last sound out of your throat. The impact, when it comes, is just distance closing.",
+      ];
+      break;
+    default:
+      lines = [
+        "Something in the dark moves, and your story ends faster than you can understand.",
+      ];
+      break;
+  }
 
-function handlePlayerDeath() {
-  logSystem(pickOne([
-    "Your legs buckle. The world tilts. Blood warms the stone beneath you.",
-    "You collapse, breath rattling once—then not at all.",
-  ]));
-  logSystem("Death claims you in the Dawnspire…");
+  logSystem(pickLine(lines));
+  logSystem("The Dawnspire doesn’t care how you die. It only cares that you stay.");
   handleReset();
 }
 
-function runFallingStoneTrap() {
+// helper: Room 3 loose-stone trap
+function runCollapsedStairTrap() {
+  if (gameState.flags.collapsedStairTrapDone) return true;
+
   gameState.flags.collapsedStairTrapDone = true;
-  logSystem("Stone grinds overhead. A block shears loose and plummets.");
 
-  const dmg = roll(1, 3);
-  gameState.player.hp -= dmg;
-
-  if (gameState.player.hp <= 0) {
-    gameState.player.hp = 0;
-    updateStatusBar();
-    logSystem("The impact crushes the breath from your body.");
-    return handlePlayerDeath();
-  }
-
-  updateStatusBar();
-  logSystem(`The block glances off your shoulder. (${dmg} damage)`);
-}
-
-function runRatPileTrap() {
-  gameState.flags.storeroomTrapDone = true;
-  logSystem("The bone pile erupts into a frenzy of teeth.");
-
-  const dmg = roll(1, 3);
-  gameState.player.hp -= dmg;
-
-  if (gameState.player.hp <= 0) {
-    gameState.player.hp = 0;
-    updateStatusBar();
-    logSystem("The swarm tears you apart in seconds.");
-    return handlePlayerDeath();
-  }
-
-  updateStatusBar();
-  logSystem(`You kick free of gnawing bodies. (${dmg} damage)`);
-}
-
-function runArmoryTrap() {
-  if (gameState.flags.armoryTrapDone) return;
-  gameState.flags.armoryTrapDone = true;
-
-  logSystem("A pristine blade catches your eye — too pristine. You grasp it.");
-  logSystem("The metal collapses into choking rust, exploding across your face!");
-
-  const dmg = roll(1, 3);
-  gameState.player.hp -= dmg;
-
-  if (gameState.player.hp <= 0) {
-    gameState.player.hp = 0;
-    updateStatusBar();
-    logSystem("Your lungs seize as you collapse.");
-    return handlePlayerDeath();
-  }
-
-  updateStatusBar();
-  logSystem(`You stagger, choking on rust. (${dmg} damage)`);
-
-  giveArmoryLoot();
-}
-
-function maybeVestibuleLoot() {
-  if (gameState.flags.gotVestibuleLoot) return;
-  gameState.flags.gotVestibuleLoot = true;
-
-  gameState.inventory.push(
-    { id: "ration", name: "Travel Ration", type: "ration" },
-    { id: "dirty-bandage", name: "Dirty Bandage", type: "consumable", heal: 4 }
+  logSystem(
+    "Your boot rolls on a loose stone. The stair lurches, and a chunk of the ceiling breaks free."
   );
 
-  logSystem("You find a stale ration and a dirty bandage among shredded bedroll remains.");
-}
-
-function maybeStoreroomLoot() {
-  if (gameState.flags.gotStoreroomLoot) return;
-  gameState.flags.gotStoreroomLoot = true;
-
-  // Buckler
-  if (!gameState.flags.gotBuckler) {
-    gameState.flags.gotBuckler = true;
-    gameState.inventory.push({ id: "rust-buckler", name: "Rust-Flecked Buckler", type: "shield" });
-    logSystem("Under the bones you find a rust-flecked buckler.");
-  }
-
-  // First shard
-  if (!playerHasItem("lantern-shard-1")) {
-    gameState.inventory.push({ id: "lantern-shard-1", name: "Lantern Shard (First Fragment)", type: "key" });
-    logSystem("A prismatic shard gleams between cracked teeth. You take it.");
-  }
-
-  // Auto-equip buckler if offhand empty
-  if (!gameState.equipment.offhand) {
-    gameState.equipment.offhand = "rust-buckler";
-    logSystem("You strap the buckler to your arm.");
-  }
-}
-
-function maybeGuardSpear() {
-  if (gameState.flags.guardSpearTaken) return;
-  gameState.flags.guardSpearTaken = true;
-
-  const spear = { id: "old-guard-spear", name: "Old Guard Spear", type: "weapon", atk: 1 };
-  gameState.inventory.push(spear);
-
-  logSystem("You find an old guard spear with enough edge left to matter.");
-
-  // Auto-equip if no weapon
-  ensureEquipment();
-  if (!gameState.equipment.weapon) {
-    gameState.equipment.weapon = "old-guard-spear";
-    logSystem("You take up the spear — longer reach, safer distance.");
-  }
-}
-
-function maybeTakeNicheShard() {
-  if (gameState.flags.nicheShardTaken) return;
-  gameState.flags.nicheShardTaken = true;
-
-  gameState.inventory.push({ id: "lantern-shard-2", name: "Lantern Shard (Second Fragment)", type: "key" });
-  logSystem("You take the prismatic shard resting on the pedestal.");
-}
-
-function giveArmoryLoot() {
-  if (gameState.flags.armoryLootDone) return;
-  gameState.flags.armoryLootDone = true;
-
-  const iron = { id: "iron-sword", name: "Serviceable Iron Sword", type: "weapon", atk: 2 };
-  const shard = { id: "lantern-shard-3", name: "Lantern Shard (Third Fragment)", type: "key" };
-
-  gameState.inventory.push(iron, shard);
-
-  const c = roll(1, 3);
-  for (let i = 0; i < c; i++) gameState.inventory.push({ id: "coin", name: "Dawnspire Coin", type: "coin" });
-
-  logSystem("You recover a sturdy iron sword, a prismatic shard, and a few coins.");
-
-  // Auto-equip if better than current
-  const current = getEquippedWeapon();
-  if (!current || (current.atk || 0) < iron.atk) {
-    gameState.equipment.weapon = "iron-sword";
-    logSystem("You equip the iron sword — balanced, reliable, deadly.");
-  }
-}
-
-// ============================================================
-// CHANGE 1: Provision Cellar loot — EXACTLY 2 rations, once
-// ============================================================
-function maybeProvisionCellarLoot() {
-  if (gameState.flags.gotProvisionRations) return;
-  gameState.flags.gotProvisionRations = true;
-
-  gameState.inventory.push(
-    { id: "ration", name: "Travel Ration", type: "ration" },
-    { id: "ration", name: "Travel Ration", type: "ration" }
-  );
-
-  logSystem("You salvage two intact wax-sealed rations from a toppled crate.");
-}
-
-// ============================================================
-// MODULE 4C — SHRINE + LIGHT PUZZLE
-// ============================================================
-
-function playerHasAnyShard() {
-  return gameState.inventory.some((i) => i?.id?.startsWith("lantern-shard-"));
-}
-
-function describeShrineState() {
-  if (!playerHasAnyShard()) {
-    logSystem("The Knight statue extends an empty hand, waiting for something sharp and prismatic.");
-    return;
-  }
-  if (!gameState.flags.shrineUsed) {
-    logSystem("The crystal flame leans toward your shards. Perhaps: use shard");
-  } else if (gameState.flags.shrineBlessingActive) {
-    logSystem("Warmth coils in your chest — a single lethal blow will not kill you.");
-  } else {
-    logSystem("The shrine flame flickers low. Its gift has already been spent.");
-  }
-}
-
-// ============================================================
-// CHANGE 2: Shrine “use shard” => +5 Max HP AND +5 current HP (capped), +blessing
-// ============================================================
-function useShardAtShrine() {
-  if (gameState.location !== "hidden_shrine") {
-    logSystem("You hold the shard out. Nothing here responds.");
-    return;
-  }
-
-  if (gameState.flags.shrineUsed) {
-    logSystem("The shrine has already given what it can.");
-    return;
-  }
-
-  if (!playerHasAnyShard()) {
-    logSystem("You reach for a shard you don't have.");
-    return;
-  }
-
-  // Consume ONE shard
-  const shardId = gameState.inventory.find((i) => i?.id?.startsWith("lantern-shard-"))?.id;
-  if (shardId) consumeItemById(shardId);
-
-  gameState.flags.shrineUsed = true;
-  gameState.flags.shrineBlessingActive = true;
-
+  const dmg = roll(1, 3);
   const p = gameState.player;
 
-  // +5 Max HP (permanent)
-  p.maxHp += 5;
+  if (dmg <= 0) {
+    logSystem("Dust and pebbles shower over you, but the worst of it misses.");
+    return true;
+  }
 
-  // +5 current HP (capped by NEW max)
-  p.hp = Math.min(p.maxHp, p.hp + 5);
+  p.hp -= dmg;
+
+  if (p.hp <= 0) {
+    p.hp = 0;
+    updateStatusBar();
+    handleTrapDeath("collapsed_stair_rock");
+    return false;
+  }
 
   updateStatusBar();
-
-  logSystem("The shard sinks into the Knight’s palm. Light blooms. Warmth fills your lungs.");
-  logSystem(`Your body hardens with the flame’s memory. (+5 Max HP, now ${p.maxHp})`);
-  logSystem(`Heat stitches your wounds tighter. (+up to 5 HP, now ${p.hp}/${p.maxHp})`);
-  logSystem("The blessing settles in your bones — the next killing blow will leave you at 1 HP.");
-
-  scheduleSave();
+  logSystem(
+    `The falling stone grazes you for ${dmg} damage. HP: ${p.hp}/${p.maxHp}.`
+  );
+  return true;
 }
 
-function describeMirrorState() {
-  if (!gameState.flags.flickerShardAligned) {
-    logSystem("The mirrors show only dust and fractured reflections — no beam reaches them yet.");
-    return;
-  }
-  if (gameState.flags.mirrorToNiche) {
-    logSystem("Mirrors angle east, carrying the light toward the Shard Niche.");
-  } else if (gameState.flags.mirrorToDoor) {
-    logSystem("Mirrors angle south, sending light toward the Door of Failed Light.");
-  } else {
-    logSystem("The beam flickers chaotically across cracked mirrors.");
-  }
-}
+// helper: Room 5 rat-swarm trap
+function runGnawedStoreroomTrap() {
+  if (gameState.flags.gnawedStoreroomTrapDone) return true;
 
-function handleAdjustMirrors(target) {
-  if (gameState.location !== "mirror_gallery") {
-    logSystem("Nothing here responds to mirror adjustments.");
-    return;
-  }
-  if (!gameState.flags.flickerShardAligned) {
-    logSystem("Without a source beam from the Flicker Node, the mirrors stay dull.");
-    return;
-  }
+  gameState.flags.gnawedStoreroomTrapDone = true;
 
-  // small risk trap
-  if (roll(1, 100) <= 30) {
-    const dmg = roll(1, 3);
-    gameState.player.hp -= dmg;
-    if (gameState.player.hp <= 0) {
-      gameState.player.hp = 0;
-      updateStatusBar();
-      logSystem("A mirror slips — the flash burns right through you.");
-      return handlePlayerDeath();
-    }
+  logSystem(
+    "Your step sinks into a drift of bones. The whole pile shivers, then erupts as a churning swarm of half-rotten rats."
+  );
+
+  const dmg = roll(1, 3);
+  const p = gameState.player;
+
+  p.hp -= dmg;
+
+  if (p.hp <= 0) {
+    p.hp = 0;
     updateStatusBar();
-    logSystem(`A mirror slips — blinding flash! (${dmg} damage)`);
-    return;
+    handleTrapDeath("gnawed_rats");
+    return false;
   }
 
-  const t = (target || "").toLowerCase();
-  if (t.includes("east") || t.includes("niche")) {
-    gameState.flags.mirrorToNiche = true;
-    gameState.flags.mirrorToDoor = false;
-    logSystem("You angle mirrors east — the beam now travels toward the Niche.");
-    return;
-  }
-
-  if (t.includes("south") || t.includes("door")) {
-    gameState.flags.mirrorToDoor = true;
-    gameState.flags.mirrorToNiche = false;
-    logSystem("Mirrors tilt south, sending light toward the great door.");
-    return;
-  }
-
-  logSystem("You shift mirrors, but the beam scatters uselessly.");
+  updateStatusBar();
+  logSystem(
+    `They tear at your ankles and calves before scattering back into the dark. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
+  );
+  return true;
 }
 
-function describeShardNicheState() {
-  const incoming = gameState.flags.flickerShardAligned && gameState.flags.mirrorToNiche;
-  const seated = gameState.flags.nicheShardSeated;
+// helper: Broken Barracks search trap + loot
+function runBarracksSearchTrapAndLoot() {
+  if (gameState.flags.barracksTrapDone) {
+    if (gameState.flags.barracksLootTaken) {
+      logSystem(
+        "You pick over the ruined bunks again, but all that’s left is splinters and dust."
+      );
+      return;
+    }
+    maybeGrantBarracksLoot();
+    return;
+  }
 
-  if (incoming && seated) {
-    logSystem("Light hits the shard and splits — one beam feeds the mirrors, another dives toward the Door of Failed Light.");
-  } else if (incoming && !seated) {
-    logSystem("Light grazes the empty socket — seating a shard would focus it.");
-  } else if (!incoming && seated) {
-    logSystem("The shard waits, fractures ready to split light when it arrives.");
+  gameState.flags.barracksTrapDone = true;
+
+  logSystem(
+    "You lean your weight into one of the more intact bunks. Rotten timbers give with a sharp crack."
+  );
+  logSystem(
+    "The frame lurches sideways and slides into the fissure, dragging you half with it in a roar of splintering wood and falling stone."
+  );
+
+  const dmg = roll(1, 3);
+  const p = gameState.player;
+  p.hp -= dmg;
+
+  if (p.hp <= 0) {
+    p.hp = 0;
+    updateStatusBar();
+    handleTrapDeath("barracks_collapse");
+    return;
+  }
+
+  updateStatusBar();
+  logSystem(
+    `You slam into the edge of the fissure and haul yourself back up, bruised and breathless. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
+  );
+
+  maybeGrantBarracksLoot();
+}
+
+function maybeGrantBarracksLoot() {
+  if (gameState.flags.barracksLootTaken) return;
+  gameState.flags.barracksLootTaken = true;
+
+  const ration = { id: "ration", name: "Travel Ration", type: "ration" };
+  const draught = {
+    id: "low-healing-draught",
+    name: "Low-grade Healing Draught",
+    type: "consumable",
+    heal: 8,
+  };
+  const journal = {
+    id: "torn-journal-pages",
+    name: "Torn Journal Pages",
+    type: "lore",
+  };
+
+  gameState.inventory.push(ration, draught, journal);
+
+  logSystem(
+    "In the space where the bunk tore free, your hand brushes old parchment and something glass still mostly intact."
+  );
+  logSystem(
+    "You recover a few Torn Journal Pages, a shriveled ration wrapped in oilcloth, and a small stoppered vial of pale liquid."
+  );
+  logSystem("You gain: Torn Journal Pages, Travel Ration, Low-grade Healing Draught.");
+}
+
+// helper: Watch Balcony trap
+function runWatchBalconyTrap() {
+  if (gameState.flags.watchBalconyTrapDone) {
+    logSystem(
+      "You keep a healthier distance from the cracked parapet this time; the stone looks ready to betray anyone who trusts it twice."
+    );
+    return;
+  }
+
+  gameState.flags.watchBalconyTrapDone = true;
+
+  logSystem(
+    "You lean out over the parapet to get a better look at the cistern below. The cracked stone shifts under your hands with a sharp, grinding pop."
+  );
+  logSystem(
+    "For a heartbeat you hang in empty air with the railing, then slam back into the balcony as a chunk breaks away and tumbles into the dark."
+  );
+
+  const dmg = roll(2, 5);
+  const p = gameState.player;
+  p.hp -= dmg;
+
+  if (p.hp <= 0) {
+    p.hp = 0;
+    updateStatusBar();
+    handleTrapDeath("watch_fall");
+    return;
+  }
+
+  updateStatusBar();
+  logSystem(
+    `Pain blooms along your ribs where the stone caught you. Somewhere far below, the broken railing hits water with a distant splash. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
+  );
+}
+
+// helper: vestibule loot (after fight)
+function maybeGrantVestibuleLoot() {
+  if (gameState.flags.gotVestibuleLoot) return;
+  if (!gameState.flags.vestibuleCombatDone) return;
+
+  gameState.flags.gotVestibuleLoot = true;
+
+  const ration = { id: "ration", name: "Travel Ration", type: "ration" };
+  const bandage = {
+    id: "dirty-bandage",
+    name: "Dirty Bandage",
+    type: "consumable",
+    heal: 4,
+  };
+
+  gameState.inventory.push(ration, bandage);
+
+  logSystem(
+    "Picking through the shredded bedroll and pack remains, you turn up a stale ration and a strip of dirty bandage stiff with old blood."
+  );
+  logSystem("You gain: Travel Ration, Dirty Bandage.");
+}
+
+// helper: storeroom loot (Rust-Flecked Buckler + Lantern Shard #1)
+function maybeGrantStoreroomBuckler() {
+  if (gameState.flags.gotStoreroomBuckler) return;
+  if (!gameState.flags.gnawedStoreroomTrapDone) return;
+
+  gameState.flags.gotStoreroomBuckler = true;
+
+  const buckler = {
+    id: "rust-buckler",
+    name: "Rust-Flecked Buckler",
+    type: "shield",
+  };
+
+  const shard = {
+    id: "lantern-shard-1",
+    name: "Lantern Shard (First Fragment)",
+    type: "key",
+  };
+
+  gameState.inventory.push(buckler, shard);
+
+  logSystem(
+    "Kicking aside scattered bones, you spot the curve of metal under a fallen shelf: a small buckler, its surface pitted with rust."
+  );
+  logSystem(
+    "Nearby, half-wedged between old grain and gnawed bone, a narrow shard of prismatic crystal catches the light."
+  );
+  logSystem("You gain: Rust-Flecked Buckler, Lantern Shard (First Fragment).");
+
+  ensureEquipment();
+  if (!gameState.player.equipment.shieldId) {
+    gameState.player.equipment.shieldId = "rust-buckler";
+    logSystem("You strap the buckler onto your forearm. Clumsy, but better than nothing.");
+  }
+}
+
+// helper: Shard Niche loot – Lantern Shard #2
+function maybeGrantShardNicheShard() {
+  if (gameState.flags.gotShardNicheShard) return;
+
+  gameState.flags.gotShardNicheShard = true;
+
+  const shard2 = {
+    id: "lantern-shard-2",
+    name: "Lantern Shard (Second Fragment)",
+    type: "key",
+  };
+
+  gameState.inventory.push(shard2);
+
+  logSystem(
+    "Up close, the crystal on the pedestal is unmistakable: another lantern shard, its facets too clean and deliberate to be natural."
+  );
+  logSystem("You gain: Lantern Shard (Second Fragment).");
+}
+
+// helper: Flicker Node loot – 2–5 coins
+function maybeGrantFlickerNodeLoot() {
+  if (gameState.flags.gotFlickerNodeLoot) return;
+
+  gameState.flags.gotFlickerNodeLoot = true;
+
+  const count = roll(2, 5);
+  for (let i = 0; i < count; i++) {
+    gameState.inventory.push({
+      id: "dawnspire-coin",
+      name: "Dawnspire Coin",
+      type: "coin",
+    });
+  }
+
+  logSystem(
+    "Shifting a broken slab near the lantern housing, you expose a few tarnished coins stamped with an unfamiliar crest."
+  );
+  logSystem(`You gain: Dawnspire Coins (${count}).`);
+}
+
+// helper: Guard Post loot – Old Guard Spear
+function maybeGrantGuardPostLoot() {
+  if (gameState.flags.gotGuardSpear) return;
+
+  gameState.flags.gotGuardSpear = true;
+
+  const spear = {
+    id: "old-guard-spear",
+    name: "Old Guard Spear",
+    type: "weapon",
+    atk: 1,
+  };
+
+  gameState.inventory.push(spear);
+
+  logSystem(
+    "Picking through the fallen spears, you find one whose haft hasn't gone completely to mush and whose head still holds a wicked edge."
+  );
+  logSystem(
+    "It’s longer than your sword—enough reach to keep teeth and knives a step farther from your throat."
+  );
+  logSystem("You gain: Old Guard Spear.");
+
+  ensureEquipment();
+  const eqWeapon = gameState.player.equipment.weaponId;
+  if (!eqWeapon || eqWeapon === "rusty-sword") {
+    gameState.player.equipment.weaponId = "old-guard-spear";
+    logSystem(
+      "You trade the close comfort of your rusty sword for the reach of the spear, settling its butt against the stone with a dull knock."
+    );
+  }
+}
+
+// helper: Armory Trap + Loot + Secret Crawl
+function runArmoryTrapAndLoot() {
+  if (gameState.flags.armoryTrapDone) {
+    if (!gameState.flags.armoryLootTaken) {
+      maybeGrantArmoryLoot();
+    } else {
+      logSystem(
+        "Most of what might have been useful in the armory is either dust or already on your back."
+      );
+    }
+    return;
+  }
+
+  gameState.flags.armoryTrapDone = true;
+
+  logSystem(
+    "Among the flaking wreckage of blades, one sword catches your eye—straight, untarnished, almost eager to be taken."
+  );
+  logSystem(
+    "Your fingers close around the hilt. The metal gives like stale bread. The entire blade collapses into a choking cloud of rust that explodes across your face and chest."
+  );
+
+  const dmg = roll(1, 3);
+  const p = gameState.player;
+  p.hp -= dmg;
+
+  if (p.hp <= 0) {
+    p.hp = 0;
+    updateStatusBar();
+    handleTrapDeath("armory_rust_cloud");
+    return;
+  }
+
+  updateStatusBar();
+  logSystem(
+    `You stagger back, eyes burning, lungs rasping around the taste of blood and metal. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
+  );
+
+  maybeGrantArmoryLoot();
+}
+
+function maybeGrantArmoryLoot() {
+  if (gameState.flags.armoryLootTaken) return;
+  gameState.flags.armoryLootTaken = true;
+
+  const ironSword = {
+    id: "iron-sword",
+    name: "Serviceable Iron Sword",
+    type: "weapon",
+    atk: 2, // upgrade from rusty sword (1)
+  };
+
+  const shard3 = {
+    id: "lantern-shard-3",
+    name: "Lantern Shard (Third Fragment)",
+    type: "key",
+  };
+
+  const coinCount = roll(1, 3);
+  const coins = [];
+  for (let i = 0; i < coinCount; i++) {
+    coins.push({
+      id: "dawnspire-coin",
+      name: "Dawnspire Coin",
+      type: "coin",
+    });
+  }
+
+  gameState.inventory.push(ironSword, shard3, ...coins);
+
+  logSystem(
+    "When the rust settles, you notice a sturdier blade still sheathed in its own decay: an iron sword whose edge has somehow survived."
+  );
+  logSystem(
+    "On a lower rack, a shield-boss lies half-buried in red dust. Its center holds a wedge of prismatic crystal, fused deep into the metal."
+  );
+  logSystem(
+    "You pry the shard free and shake a few loose coins from under the collapsed racks."
+  );
+  logSystem(
+    `You gain: Serviceable Iron Sword, Lantern Shard (Third Fragment), Dawnspire Coins (${coinCount}).`
+  );
+
+  // Auto-equip if it's clearly better
+  ensureEquipment();
+  const current = getEquippedWeapon();
+  if (!current || (current.atk || 0) < ironSword.atk) {
+    gameState.player.equipment.weaponId = "iron-sword";
+    logSystem(
+      "You discard your inferior steel in favor of the iron blade. It feels honest in your grip—heavy, but willing."
+    );
+  }
+
+  // Reveal secret crawlspace
+  if (!gameState.flags.armorySecretRevealed) {
+    gameState.flags.armorySecretRevealed = true;
+    logSystem(
+      "As you move the racks aside, rust and splinters crumble away to reveal a low, dark gap in the eastern wall—barely wide enough to crawl through."
+    );
+  }
+}
+
+// helper: bell ring logic in Fallen Guard Post
+function triggerBellRing() {
+  if (gameState.flags.guardPostBellRung) {
+    logSystem(
+      "You eye the cracked bell again. Whatever answer it had to give, it already shouted it into the halls."
+    );
+    return;
+  }
+
+  gameState.flags.guardPostBellRung = true;
+
+  logSystem(
+    "You wrap your fingers around the cold, split rim of the bell and give it a pull. Sound tears out of it in a broken, staggering peal."
+  );
+
+  const rollResult = roll(1, 100);
+
+  if (rollResult <= 50) {
+    logSystem(
+      "For a heartbeat, nothing answers. Then the spears on the floor begin to rattle as something small and many-legged pours out from under the overturned table."
+    );
+    logSystem(
+      "A swarm of tunnel-rats boils across the stone, drawn by the noise and the promise of something warm to gnaw."
+    );
+    gameState.combat.previousLocation = "fallen_guard_post";
+    startCombat("dawnspire_rat");
   } else {
-    logSystem("Everything here is still and dark.");
+    logSystem(
+      "The sound staggers off into the dark, bouncing from wall to wall until it's hard to tell where it started."
+    );
+    logSystem(
+      "Far away in the halls beyond, something answers with the scrape of claws and the faint, excited squeal of things that have just been told where dinner might be."
+    );
+    gameState.flags.guardPostBellAmbushPending = true;
   }
 }
 
-function tryOpenFailedLightDoor() {
-  const litCount =
-    (gameState.flags.flickerShardAligned ? 1 : 0) +
-    (gameState.flags.mirrorToDoor ? 1 : 0) +
-    (gameState.flags.nicheShardSeated ? 1 : 0);
-
-  if (litCount < 3) {
-    logSystem("The stone remains sealed. The sockets glow faintly at best.");
+// helper: possibly trigger bell ambush later
+function maybeTriggerBellAmbush() {
+  if (
+    !gameState.flags.guardPostBellAmbushPending ||
+    gameState.flags.guardPostBellAmbushTriggered
+  ) {
     return;
   }
 
-  logSystem("All three sockets blaze. The fractured sunburst pulses—");
-  logSystem("But the mechanism deeper within is incomplete. This path is not yet implemented.");
+  const loc = gameState.location;
+  if (loc === "outer_hall_lanterns" || loc === "mirror_gallery") {
+    gameState.flags.guardPostBellAmbushPending = false;
+    gameState.flags.guardPostBellAmbushTriggered = true;
+
+    logSystem(
+      "Somewhere behind you, the echo of that broken bell peals again—memory or imagination, you can't tell. What you do hear clearly is the sudden scrabble of claws."
+    );
+    logSystem(
+      "A starving tunnel-rat darts out from a crack in the stone, eyes wild and teeth already wet."
+    );
+
+    gameState.combat.previousLocation = loc;
+    startCombat("dawnspire_rat");
+  }
 }
 
-// ============================================================
-// MODULE 5 — COMBAT SYSTEM
-// ============================================================
+// helper: start the vestibule multi-rat fight
+function startVestibuleFight() {
+  gameState.flags.firstVestibuleVisit = true;
+
+  const twoRats = roll(1, 100) <= 50;
+  gameState.flags.vestibuleRatsRemaining = twoRats ? 2 : 1;
+  gameState.combat.previousLocation = "collapsed_stairwell";
+
+  if (twoRats) {
+    logSystem(
+      "The scratching in the tunnels builds to a frenzy. Two starved shapes spill out of the holes at once."
+    );
+  } else {
+    logSystem(
+      "Scratching builds in the walls until a single starved shape spills out, all teeth and motion."
+    );
+  }
+
+  startCombat("dawnspire_rat");
+}
+
+// helper: start the Broken Barracks fight (1–2 Desiccated Soldiers)
+function startBarracksFight() {
+  if (gameState.flags.barracksFightStarted) return;
+  gameState.flags.barracksFightStarted = true;
+
+  const two = roll(1, 100) <= 50;
+  gameState.flags.barracksSoldiersRemaining = two ? 2 : 1;
+  gameState.combat.previousLocation = "fallen_guard_post";
+
+  if (two) {
+    logSystem(
+      "As you step between the ruined bunks, two shapes pull themselves upright from where they lay collapsed, joints cracking dryly."
+    );
+  } else {
+    logSystem(
+      "One of the slumped figures on a bunk jerks and rises, bones creaking as it remembers how to stand guard."
+    );
+  }
+
+  startCombat("desiccated_soldier");
+}
+
+// helper: start Lantern Muster Hall mini-elite fight
+function startLanternMusterFight() {
+  if (gameState.flags.lanternMusterFightStarted) return;
+  gameState.flags.lanternMusterFightStarted = true;
+
+  gameState.combat.previousLocation = "broken_barracks";
+
+  logSystem(
+    "As you step across the cracked floor-map, one of the banner-shadows peels itself away from the far wall, lantern swinging from a dead hand."
+  );
+  logSystem(
+    "A figure in half-rotted plate armor staggers into the light it carries, empty eye-sockets glowing with a pale, steady ember."
+  );
+
+  startCombat("hollow_lantern_bearer");
+}
+
+// =========================
+// Use / bandage / draught / equip / mirrors / shards / bell / search
+// =========================
+
+function useBandage(inCombat) {
+  const idx = findItemIndexByNameFragment("bandage");
+  if (idx === -1) {
+    logSystem("You fumble for a bandage, but come up with nothing but dirty fingers.");
+    return false;
+  }
+
+  const item = gameState.inventory[idx];
+  const healAmount = item.heal || 4;
+  consumeItemByIndex(idx);
+
+  const p = gameState.player;
+  const before = p.hp;
+  p.hp = Math.min(p.maxHp, p.hp + healAmount);
+  updateStatusBar();
+
+  const healed = p.hp - before;
+
+  if (healed <= 0) {
+    logSystem(
+      "You wrap the filthy cloth around already-closed wounds. It does more for your courage than your flesh."
+    );
+  } else if (inCombat) {
+    logSystem(
+      "You yank the filthy bandage tight around the worst of the bleeding, teeth clenched."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  } else {
+    logSystem(
+      "You take a moment to wrap the dirty bandage around the worst of the damage. It isn't clean, but it holds you together."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  }
+
+  return true;
+}
+
+function useHealingDraught(inCombat) {
+  const idx = findItemIndexByNameFragment("draught");
+  const idxAlt = idx === -1 ? findItemIndexByNameFragment("potion") : idx;
+
+  const useIdx = idxAlt;
+  if (useIdx === -1) {
+    logSystem("You pat yourself down for a vial, but come up empty.");
+    return false;
+  }
+
+  const item = gameState.inventory[useIdx];
+  const healAmount = item.heal || 8;
+  consumeItemByIndex(useIdx);
+
+  const p = gameState.player;
+  const before = p.hp;
+  p.hp = Math.min(p.maxHp, p.hp + healAmount);
+  updateStatusBar();
+  const healed = p.hp - before;
+
+  if (healed <= 0) {
+    logSystem("You swallow the bitter liquid, but it only calms your nerves.");
+  } else if (inCombat) {
+    logSystem(
+      "You wrench the stopper out with your teeth and gulp the draught down as fast as you dare. Heat blooms in your gut and spreads outward."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  } else {
+    logSystem(
+      "You drink the draught slowly, letting its warmth seep into the aches and bruises that never quite left."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  }
+
+  return true;
+}
+
+function handleEquip(rawArgs) {
+  const argRaw = String(rawArgs || "").trim();
+  const arg = normalizeWord(argRaw);
+  if (!arg) {
+    logSystem("Equip what? (e.g., 'equip sword' or 'equip buckler')");
+    return;
+  }
+
+  // Allow numeric equip (matches inventory list order)
+  const num = Number.parseInt(arg, 10);
+  let item = null;
+
+  if (!Number.isNaN(num) && String(num) === arg) {
+    const grouped = getGroupedInventory();
+    const entry = grouped[num - 1];
+    if (!entry) {
+      logSystem("That number doesn't match anything you're carrying.");
+      return;
+    }
+    item = entry.item;
+  } else {
+    const idx = gameState.inventory.findIndex((it) =>
+      normalizeWord(it?.name || "").includes(arg)
+    );
+    if (idx === -1) {
+      logSystem("You don't seem to be carrying anything like that.");
+      return;
+    }
+    item = gameState.inventory[idx];
+  }
+
+  ensureEquipment();
+
+  if (item.type === "weapon") {
+    gameState.player.equipment.weaponId = item.id;
+    logSystem(
+      `You shift your grip around the ${item.name}, letting its weight settle into something that feels like intent.`
+    );
+  } else if (item.type === "shield") {
+    gameState.player.equipment.shieldId = item.id;
+    logSystem(
+      `You strap the ${item.name} to your forearm. It's not much, but it's better than empty air.`
+    );
+  } else {
+    logSystem("That doesn't sit right in your hands as a weapon or shield.");
+  }
+
+  updateStatusBar();
+}
+
+function grantShrineBlessingAndCharm() {
+  if (gameState.flags.shrineBlessingGranted) return;
+
+  gameState.flags.shrineBlessingGranted = true;
+  gameState.flags.shrineBlessingActive = true;
+
+  // Loot: Flame-Touched Charm
+  if (!gameState.flags.shrineLootTaken) {
+    gameState.flags.shrineLootTaken = true;
+    const charm = {
+      id: "flame-touched-charm",
+      name: "Flame-Touched Charm",
+      type: "charm",
+    };
+    gameState.inventory.push(charm);
+    logSystem(
+      "As the crystal flame swells, a sliver of it gutters loose and hardens into a small charm—warm to the touch, threaded with a quiet inner glow."
+    );
+    logSystem("You gain: Flame-Touched Charm.");
+  }
+
+  const p = gameState.player;
+  // Small immediate top-off feels nice
+  const before = p.hp;
+  p.hp = Math.min(p.maxHp, p.hp + 5);
+  updateStatusBar();
+
+  logSystem(
+    "Light floods up through the statue’s arm, into the crystal flame, and then out through the chamber. For a heartbeat, you feel as though you’re standing in noon sunlight instead of buried stone."
+  );
+  logSystem(
+    "The warmth pools behind your ribs and settles there, a thin burning thread that refuses to go out."
+  );
+
+  if (p.hp > before) {
+    logSystem(
+      `You feel some of your wounds knit under the heat. (+${p.hp - before} HP, now ${p.hp}/${p.maxHp})`
+    );
+  }
+
+  logSystem(
+    "You carry a quiet certainty now: the first blow that should kill you in battle will leave you hanging on at the edge instead."
+  );
+}
+
+function handleUse(rawArgs, { inCombat = false } = {}) {
+  let argRaw = String(rawArgs || "").trim();
+  let arg = normalizeWord(argRaw);
+
+  if (!arg) {
+    logSystem("Use what?");
+    return;
+  }
+
+  // Allow numeric use (matches inventory list order)
+  const num = Number.parseInt(arg, 10);
+  if (!Number.isNaN(num) && String(num) === arg) {
+    const grouped = getGroupedInventory();
+    const entry = grouped[num - 1];
+    if (!entry) {
+      logSystem("That number doesn't match anything you're carrying.");
+      return;
+    }
+    arg = normalizeWord(entry.item?.name || "");
+  }
+
+  // Bell in Fallen Guard Post
+  if (arg.includes("bell") && gameState.location === "fallen_guard_post") {
+    if (inCombat) {
+      logSystem("You have no spare seconds to tug on a bell rope right now.");
+      return;
+    }
+    triggerBellRing();
+    return;
+  }
+
+  // Bandages – mid-combat heal
+  if (arg.includes("bandage")) {
+    const used = useBandage(inCombat);
+    if (!used) return;
+    return;
+  }
+
+  // Healing draught / potion
+  if (arg.includes("draught") || arg.includes("potion")) {
+    const used = useHealingDraught(inCombat);
+    if (!used) return;
+    return;
+  }
+
+  // Journal pages – lore
+  if (arg.includes("journal") || arg.includes("pages")) {
+    const idx = findItemIndexByNameFragment("journal");
+    const idx2 = idx === -1 ? findItemIndexByNameFragment("pages") : idx;
+    if (idx2 === -1) {
+      logSystem("You don't seem to be carrying any pages worth reading.");
+      return;
+    }
+    logSystem(
+      "The Torn Journal Pages crackle faintly as you unfold them. The handwriting is hurried, ink blotched by old sweat and something darker."
+    );
+    logSystem(
+      "\"The Lantern Knights held the upper rings as long as they could. When the light failed, they shattered the stones and fled downward instead of up. Said the dark below was safer than the dark above.\""
+    );
+    logSystem(
+      "Another line, half-smeared: \"If anyone finds this—remember: light isn't the only thing that can hold a gate.\""
+    );
+    return;
+  }
+
+  // Lantern Shard in Hidden Shrine – blessing + charm
+  if (
+    (arg.includes("shard") || arg.includes("crystal")) &&
+    gameState.location === "hidden_shrine_flame"
+  ) {
+    if (!playerHasLanternShard()) {
+      logSystem(
+        "You lay an empty hand in the statue’s open palm. The crystal flame flickers once, politely, and then ignores you."
+      );
+      return;
+    }
+
+    if (gameState.flags.shrineBlessingGranted) {
+      logSystem(
+        "You press a shard into the statue’s hand again. The crystal flame stirs, but whatever bargain it made with you is already sealed."
+      );
+      return;
+    }
+
+    logSystem(
+      "You ease a Lantern Shard into the Knight’s outstretched hand. For a moment it simply rests there, a dull sliver against stone."
+    );
+    grantShrineBlessingAndCharm();
+    return;
+  }
+
+  // Lantern Shard in Flicker Node – "Light must travel."
+  if (
+    (arg.includes("shard") || arg.includes("crystal")) &&
+    gameState.location === "flicker_node"
+  ) {
+    if (!playerHasLanternShard()) {
+      logSystem(
+        "You pat your pockets for crystal, but come up empty. The lantern socket stays dark and expectant."
+      );
+      return;
+    }
+
+    if (gameState.flags.flickerShardAligned) {
+      logSystem(
+        "The shard already sits snug in the lantern’s socket, throwing a faint beam north into the waiting mirrors."
+      );
+      return;
+    }
+
+    gameState.flags.flickerShardAligned = true;
+
+    logSystem(
+      "You fit a Lantern Shard into the empty socket. A thin thread of pale light wakes inside it and knifes outward toward the north."
+    );
+    logSystem("The inscription beneath the lantern seems satisfied: “Light must travel.”");
+    return;
+  }
+
+  // Lantern Shard in Shard Niche – split beam
+  if (
+    (arg.includes("shard") || arg.includes("crystal")) &&
+    gameState.location === "shard_niche"
+  ) {
+    if (!playerHasLanternShard()) {
+      logSystem(
+        "Your fingers find only dust and old cuts. Whatever shard once lay here is either in your past or in somebody else’s story."
+      );
+      return;
+    }
+
+    if (gameState.flags.deepNodeShardAligned) {
+      logSystem(
+        "The shard already sits in the niche’s socket. Light crawls through it in slow pulses, splitting along fractures you can feel more than see."
+      );
+      return;
+    }
+
+    gameState.flags.deepNodeShardAligned = true;
+
+    const hasIncoming =
+      !!gameState.flags.flickerShardAligned &&
+      !!gameState.flags.mirrorBeamToNiche;
+
+    if (hasIncoming) {
+      logSystem(
+        "You press the shard into the waiting socket. It bites down with a tiny, hungry click as the faint beam from the gallery finds it."
+      );
+      logSystem(
+        "Light floods the crystal and splits: one ray knifes back toward the mirrors, another dives down the stone toward the carved door to the south."
+      );
+    } else {
+      logSystem(
+        "You settle a Lantern Shard into the empty socket. It hums faintly, waiting for a beam to arrive."
+      );
+    }
+
+    return;
+  }
+
+  logSystem("You don't have a clear way to use that right now.");
+}
+
+// Mirror adjustment in room 9
+function handleAdjust(rawArgs) {
+  const arg = normalizeWord(rawArgs);
+
+  if (gameState.location !== "mirror_gallery") {
+    logSystem(
+      "You prod at your surroundings, but nothing here feels built to be adjusted that way."
+    );
+    return;
+  }
+
+  const hasBeam = !!gameState.flags.flickerShardAligned;
+
+  if (!hasBeam) {
+    logSystem(
+      "You shove at a few cracked panels. Without any light to catch, all you do is rearrange your own reflection."
+    );
+    return;
+  }
+
+  const misalignRoll = roll(1, 100);
+  if (misalignRoll <= 30) {
+    logSystem(
+      "You wrench one of the looser mirrors a little too far. For a heartbeat, every panel finds the same cruel angle."
+    );
+
+    const p = gameState.player;
+    const dmg = roll(1, 3);
+    p.hp -= dmg;
+
+    if (p.hp <= 0) {
+      p.hp = 0;
+      updateStatusBar();
+      handleTrapDeath("mirror_flash");
+      return;
+    }
+
+    updateStatusBar();
+    logSystem(
+      `White fire detonates behind your eyes. When the world staggers back into place, everything swims. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
+    );
+    return;
+  }
+
+  const wantsEast = arg.includes("east");
+  const wantsDoor =
+    arg.includes("door") ||
+    arg.includes("gate") ||
+    arg.includes("sun") ||
+    arg.includes("north");
+
+  if (!wantsEast && !wantsDoor) {
+    gameState.flags.mirrorBeamToNiche = false;
+    gameState.flags.mirrorBeamToDoor = false;
+    gameState.flags.mirrorShardAligned = false;
+
+    logSystem(
+      "You nudge a few panels into new positions. The beam skitters from crack to crack, never settling."
+    );
+    return;
+  }
+
+  if (wantsEast) {
+    gameState.flags.mirrorBeamToNiche = true;
+    gameState.flags.mirrorBeamToDoor = false;
+    gameState.flags.mirrorShardAligned = false;
+
+    logSystem(
+      "You angle a trio of panels until the beam spears away to the east, threading through a gap toward the niche chamber."
+    );
+    return;
+  }
+
+  if (wantsDoor) {
+    gameState.flags.mirrorBeamToDoor = true;
+    gameState.flags.mirrorBeamToNiche = false;
+    gameState.flags.mirrorShardAligned = true;
+
+    logSystem(
+      "Careful adjustments bring the beam around in a broken arc—panel to panel—until it slips out of the gallery at a shallow, southward angle toward the carved door."
+    );
+    return;
+  }
+}
+
+// Ring command – mostly for the bell
+function handleRing(rawArgs, { inCombat = false } = {}) {
+  const arg = normalizeWord(rawArgs);
+  if (!arg || arg === "bell") {
+    if (gameState.location === "fallen_guard_post") {
+      if (inCombat) {
+        logSystem("You have no spare breath to waste on that bell.");
+        return;
+      }
+      triggerBellRing();
+      return;
+    }
+    logSystem("You look around for something worth ringing. Nothing here seems eager to answer.");
+    return;
+  }
+
+  if (arg.includes("bell")) {
+    if (gameState.location === "fallen_guard_post") {
+      if (inCombat) {
+        logSystem("You have no spare breath to waste on that bell.");
+        return;
+      }
+      triggerBellRing();
+      return;
+    }
+    logSystem("There’s no bell here to ring.");
+    return;
+  }
+
+  logSystem("You don't find anything that wants to be rung.");
+}
+
+function handleSearch() {
+  if (gameState.combat.inCombat) {
+    logSystem("You don't have time to rummage around while something is trying to kill you.");
+    return;
+  }
+
+  const loc = gameState.location;
+
+  if (loc === "broken_barracks") {
+    runBarracksSearchTrapAndLoot();
+    return;
+  }
+
+  if (loc === "gnawed_storeroom") {
+    if (!gameState.flags.gnawedStoreroomTrapDone) {
+      logSystem(
+        "The piles of bones and torn sacks look like a bad place to stick your hands until you're ready for whatever wakes up."
+      );
+    } else if (!gameState.flags.gotStoreroomBuckler) {
+      maybeGrantStoreroomBuckler();
+    } else {
+      logSystem(
+        "You sift through the bones again but come up with nothing new—just more brittle remains."
+      );
+    }
+    return;
+  }
+
+  if (loc === "fallen_guard_post") {
+    logSystem(
+      "You pick over the overturned table and fallen spears. Anything worth keeping is either already on you or long gone."
+    );
+    return;
+  }
+
+  if (loc === "lantern_muster_hall") {
+    logSystem(
+      "You trace the edges of the cracked floor-map and check behind the tattered banners, but nothing new offers itself up—at least not yet."
+    );
+    return;
+  }
+
+  if (loc === "armory_of_dust") {
+    runArmoryTrapAndLoot();
+    return;
+  }
+
+  if (loc === "hidden_shrine_flame") {
+    logSystem(
+      "You circle the small chamber, checking behind the statue and along the curved walls. There’s nothing else hidden here—the Knight and its flame are the point."
+    );
+    return;
+  }
+
+  if (loc === "watch_balcony") {
+    runWatchBalconyTrap();
+    return;
+  }
+
+  logSystem("You take a moment to search, but nothing new turns up.");
+}
+
+function describeLocation() {
+  const loc = locations[gameState.location];
+  if (!loc) {
+    logSystem("You are... nowhere? (Invalid location)");
+    return;
+  }
+  logSystem(`${loc.name}\n${loc.description}`);
+
+  // landing loot
+  if (gameState.location === "cracked_landing") {
+    maybeGrantLanternBadge();
+  }
+
+  // vestibule loot
+  if (
+    gameState.location === "rat_gnawed_vestibule" &&
+    !gameState.combat.inCombat
+  ) {
+    maybeGrantVestibuleLoot();
+  }
+
+  // storeroom loot
+  if (gameState.location === "gnawed_storeroom" && !gameState.combat.inCombat) {
+    maybeGrantStoreroomBuckler();
+  }
+
+  // Flicker Node
+  if (gameState.location === "flicker_node" && !gameState.combat.inCombat) {
+    maybeGrantFlickerNodeLoot();
+
+    if (gameState.flags.flickerShardAligned) {
+      logSystem(
+        "The inset lantern hums faintly, a hairline beam of light carving north through the dust toward the mirror-lined hall."
+      );
+    } else if (playerHasLanternShard()) {
+      logSystem(
+        "On the lantern’s base, a tiny inscription reads: “Light must travel.” The empty prismatic socket looks uncomfortably close to the shard you’re carrying."
+      );
+    } else {
+      logSystem(
+        "The lantern’s inscription—“Light must travel.”—sits beneath an empty prismatic socket. Whatever once lived there is long gone."
+      );
+    }
+  }
+
+  // Mirror Gallery
+  if (gameState.location === "mirror_gallery") {
+    if (!gameState.flags.mirrorGalleryHintShown) {
+      gameState.flags.mirrorGalleryHintShown = true;
+      logSystem(
+        "A few of the taller panels still pivot. You could 'adjust mirrors east' to send a beam into the niche, or 'adjust mirrors door' to bend it back toward the gate."
+      );
+    }
+
+    const hasBeam = !!gameState.flags.flickerShardAligned;
+
+    if (!hasBeam) {
+      logSystem(
+        "Without a source of light, the mirrors show nothing but dust and fractured reflections."
+      );
+    } else if (gameState.flags.mirrorBeamToNiche) {
+      logSystem(
+        "A thin thread of light slips in from the south and jumps panel to panel before knifing off to the east."
+      );
+    } else if (gameState.flags.mirrorBeamToDoor) {
+      logSystem(
+        "The incoming beam fractures and reforms across several panels, then slides out of the gallery at a shallow, southward angle."
+      );
+    } else {
+      logSystem(
+        "A restless line of light jitters from crack to crack, never quite settling on any single path."
+      );
+    }
+  }
+
+  // Shard Niche
+  if (gameState.location === "shard_niche" && !gameState.combat.inCombat) {
+    maybeGrantShardNicheShard();
+
+    const hasIncoming =
+      !!gameState.flags.flickerShardAligned && !!gameState.flags.mirrorBeamToNiche;
+    const shardSeated = !!gameState.flags.deepNodeShardAligned;
+
+    if (!hasIncoming && !shardSeated) {
+      logSystem(
+        "The lantern fixture sits dark, socket empty, as if waiting for the first taste of light before it decides what to do."
+      );
+    } else if (!hasIncoming && shardSeated) {
+      logSystem(
+        "The seated shard glows faintly, fractures ready to catch any beam that finally finds its way here."
+      );
+    } else if (hasIncoming && !shardSeated) {
+      logSystem(
+        "A faint beam from the gallery sneaks in along the west wall, grazing the empty socket without quite catching."
+      );
+    } else if (hasIncoming && shardSeated) {
+      logSystem(
+        "Light threads into the seated shard and splits along its scars: one thin beam knifes back toward the mirrors, the other dives through the stone toward the heavy door to the south."
+      );
+    }
+  }
+
+  // Door of Failed Light – status
+  if (gameState.location === "door_failed_light") {
+    const beam7 = !!gameState.flags.flickerShardAligned;
+    const beam9 = !!gameState.flags.mirrorShardAligned;
+    const beam10 = !!gameState.flags.deepNodeShardAligned;
+    const lit = (beam7 ? 1 : 0) + (beam9 ? 1 : 0) + (beam10 ? 1 : 0);
+
+    if (lit === 0) {
+      logSystem(
+        "All three crystal sockets sit dull and blind. Whatever mechanism once listened for light here is deaf to you."
+      );
+    } else if (lit === 1) {
+      logSystem(
+        "One of the sockets holds the faintest glow, like embers buried in ash. The other two remain dark."
+      );
+    } else if (lit === 2) {
+      logSystem(
+        "Two sockets answer with a weak internal glimmer, lines in the stone pulsing faintly before fading. The third stays stubbornly dead."
+      );
+    } else {
+      logSystem(
+        "All three sockets throb with trapped radiance, but the stone door still feels like a clenched jaw. Whatever comes next hasn't been written yet."
+      );
+    }
+  }
+
+  // Fallen Guard Post loot
+  if (gameState.location === "fallen_guard_post" && !gameState.combat.inCombat) {
+    maybeGrantGuardPostLoot();
+
+    if (!gameState.flags.guardPostBellRung) {
+      logSystem(
+        "The cracked bell hangs just high enough to make you think about jumping for it. Nothing here looks like it would thank you for the noise."
+      );
+    } else {
+      logSystem(
+        "The bell sways slightly on its damaged bracket, stilling with a faint metallic creak."
+      );
+    }
+  }
+
+  // Broken Barracks – auto-start fight on first entry
+  if (
+    gameState.location === "broken_barracks" &&
+    !gameState.combat.inCombat &&
+    !gameState.flags.barracksFightCleared
+  ) {
+    startBarracksFight();
+  }
+
+  // Lantern Muster Hall – auto-start Hollow Lantern-Bearer + lore hint
+  if (gameState.location === "lantern_muster_hall" && !gameState.combat.inCombat) {
+    if (!gameState.flags.lanternMusterMapHintShown) {
+      gameState.flags.lanternMusterMapHintShown = true;
+      logSystem(
+        "You follow the cracks in the floor-map with your boot. Three descending rings are carved there, each labeled in a tongue you only half-recognize."
+      );
+      logSystem(
+        "Along one shattered edge, a chipped inscription remains: “THREE RINGS BELOW—AND MORE BENEATH THAT.”"
+      );
+    }
+
+    if (!gameState.flags.lanternMusterFightCleared) {
+      startLanternMusterFight();
+    }
+  }
+
+  // Armory of Dust – note secret if revealed
+  if (gameState.location === "armory_of_dust") {
+    if (gameState.flags.armorySecretRevealed) {
+      logSystem(
+        "Between two sagging racks on the eastern side, a low, dark gap waits where stone has crumbled away—a crawlspace, if you’re willing to scrape your shoulders."
+      );
+    } else {
+      logSystem(
+        "Most of the racks lean inward, closing the room in around you. Any secrets here are still buried under rust and splinters."
+      );
+    }
+  }
+
+  // Watch Balcony lore
+  if (gameState.location === "watch_balcony") {
+    if (!gameState.flags.watchBalconyLoreShown) {
+      gameState.flags.watchBalconyLoreShown = true;
+      logSystem(
+        "On the parapet, half-obscured by hairline cracks, someone carved a line in cramped, deliberate strokes:"
+      );
+      logSystem("“THEY WILL CLIMB AFTER US. WE MUST BREAK THE WAY BACK.”");
+    }
+    logSystem(
+      "The stone beneath your boots feels tired and untrustworthy; leaning too far out over the hollow would be a bad way to test your luck."
+    );
+  }
+
+  // Hidden Shrine to the Flame – hint and blessing state
+  if (gameState.location === "hidden_shrine_flame") {
+    const hasShard = playerHasLanternShard();
+    const blessed = !!gameState.flags.shrineBlessingGranted;
+    const active = !!gameState.flags.shrineBlessingActive;
+
+    if (!blessed) {
+      if (hasShard) {
+        logSystem(
+          "The Knight’s outstretched hand is worn smooth in the palm, as if it has held something sharp and prismatic a thousand times. The crystal flame leans toward whatever you’re carrying."
+        );
+        logSystem("(You could try 'use shard' or 'use crystal' here.)");
+      } else {
+        logSystem(
+          "The Knight’s open hand is empty, fingers curled as if expecting a weight that never arrived. The crystal flame burns patiently, waiting."
+        );
+      }
+    } else if (active) {
+      logSystem(
+        "The crystal flame burns with a quiet intensity that never quite fades. You can feel a thin thread of its heat coiled somewhere behind your heart, ready to jerk you back from the edge once."
+      );
+    } else {
+      logSystem(
+        "The crystal flame is smaller now, burned down to a steady ember. Its warmth has already paid out its debt to you."
+      );
+    }
+  }
+
+  // Upper Cistern Walk – small note
+  if (gameState.location === "upper_cistern_walk") {
+    logSystem(
+      "The ledge here narrows to the width of your boots. You get the sense the Dawnspire's cisterns go much deeper than this, when the rest of it remembers how to be real."
+    );
+  }
+
+  printExitsForLocation(gameState.location);
+
+  if (!gameState.combat.inCombat) {
+    maybeTriggerBellAmbush();
+  }
+}
+
+function handleLook() {
+  if (gameState.combat.inCombat) {
+    const e = gameState.combat.enemy;
+    if (!e) {
+      logSystem("You blink, disoriented. The danger seems to have passed.");
+      return;
+    }
+    logSystem(`${e.name}\n${e.description}\n\nIt has ${e.hp}/${e.maxHp} HP remaining.`);
+  } else {
+    describeLocation();
+  }
+}
+
+function handleInventory() {
+  if (gameState.inventory.length === 0) {
+    logSystem("Your inventory is empty.");
+    return;
+  }
+
+  const grouped = getGroupedInventory();
+  const lines = [];
+  let index = 1;
+
+  for (const { item, count } of grouped) {
+    const label = count > 1 ? `${item.name} (${count})` : item.name;
+    lines.push(`${index}. ${label}`);
+    index++;
+  }
+
+  logSystem("You are carrying:\n" + lines.join("\n"));
+}
+
+// =========================
+// Combat system
+// =========================
 
 const enemyTemplates = {
   dawnspire_rat: {
@@ -1033,9 +1923,10 @@ const enemyTemplates = {
     atkMin: 1,
     atkMax: 3,
     xpReward: 12,
-    isUndead: false,
-    description: "A hairless, skeletal rat drags itself into view—skin tight over bone, teeth clicking like wet stones.",
+    description:
+      "A hairless, skeletal rat drags itself into view, its skin stretched thin over jutting bones and teeth clicking in a hungry rhythm.",
   },
+
   desiccated_soldier: {
     id: "desiccated_soldier",
     name: "Desiccated Soldier",
@@ -1045,8 +1936,10 @@ const enemyTemplates = {
     atkMax: 4,
     xpReward: 20,
     isUndead: true,
-    description: "The corpse wears the ragged remains of a garrison tabard. It moves with duty’s last reflex—slow, deliberate, wrong.",
+    description:
+      "The corpse wears the ragged remains of a garrison tabard. Skin clings tight to bone, eyes sunken to dark pits that still somehow track your movements.",
   },
+
   hollow_lantern_bearer: {
     id: "hollow_lantern_bearer",
     name: "Hollow Lantern-Bearer",
@@ -1056,61 +1949,86 @@ const enemyTemplates = {
     atkMax: 6,
     xpReward: 40,
     isUndead: true,
-    description: "Rotten plate armor hangs on a frame of dried sinew. A cracked lantern burns in its fist—cold light that hates you personally.",
-  },
-};
-
-const combatFlavor = {
-  player: {
-    normal: {
-      beast: ["You slash into the {name}, fur and flesh tearing.", "Steel bites. The {name} recoils, hissing through broken teeth."],
-      humanoid: ["You smash your weapon into the {name}'s ribs.", "Your strike drives into dead meat and old armor."],
-    },
-    crit: {
-      beast: ["Your blade finds the throat. CRITICAL HIT.", "You split bone and skull. CRITICAL HIT."],
-      humanoid: ["You cave in the {name}'s skull. CRITICAL HIT.", "Your strike punches through weak seams. CRITICAL HIT."],
-    },
-  },
-  enemy: {
-    normal: {
-      beast: ["The {name} snaps down on you.", "The {name} rakes claws across your side."],
-      humanoid: ["The {name}'s weapon crunches into you.", "The {name} drags rusted steel across your skin."],
-    },
-    crit: {
-      beast: ["The {name} sinks teeth deep. CRITICAL WOUND.", "The {name} tears into you like you're meat. CRITICAL WOUND."],
-      humanoid: ["Steel drives in. CRITICAL WOUND.", "A brutal blow lands clean. CRITICAL WOUND."],
-    },
+    description:
+      "Half-rotted plate armor hangs from a frame of desiccated sinew and bone. In one hand it clutches a cracked crystal lantern that burns with a cold, steady glow; the other drags a notched halberd that scrapes sparks from the stone. Where its eyes should be, two pinpricks of lantern-light burn in patient, hateful circles.",
   },
 };
 
 const enemyIntents = {
   beast: [
-    { key: "quick", damageMult: 1.0, blockMult: 0.6, tell: "The {name} drops low, ready to spring." },
-    { key: "heavy", damageMult: 1.8, blockMult: 0.3, tell: "The {name} coils for a bone-cracking slam." },
-    { key: "worry", damageMult: 1.3, blockMult: 0.4, tell: "The {name} circles, searching for a bite it can keep." },
+    {
+      key: "quick",
+      damageMult: 1.0,
+      blockMult: 0.6,
+      tell:
+        "The {name} drops low, muscles quivering, ready to snap forward in a fast lunge.",
+    },
+    {
+      key: "heavy",
+      damageMult: 1.8,
+      blockMult: 0.3,
+      tell: "The {name} rears back, whole body coiling for a bone-cracking slam.",
+    },
+    {
+      key: "worry",
+      damageMult: 1.3,
+      blockMult: 0.4,
+      tell:
+        "The {name} paces in a tight circle, teeth chattering, looking for something to latch onto.",
+    },
   ],
   humanoid: [
-    { key: "cut", damageMult: 1.2, blockMult: 0.5, tell: "The {name} raises its weapon in a stiff, killing arc." },
-    { key: "thrust", damageMult: 1.5, blockMult: 0.4, tell: "The {name} lines up a straight thrust." },
-    { key: "flail", damageMult: 1.0, blockMult: 0.6, tell: "The {name} jerks into a wild, sweeping attack." },
+    {
+      key: "cut",
+      damageMult: 1.2,
+      blockMult: 0.5,
+      tell:
+        "The {name} raises its weapon in a stiff, deliberate arc, aiming for exposed flesh.",
+    },
+    {
+      key: "thrust",
+      damageMult: 1.5,
+      blockMult: 0.4,
+      tell:
+        "The {name} shifts its weight and draws back for a straight, killing thrust.",
+    },
+    {
+      key: "flail",
+      damageMult: 1.0,
+      blockMult: 0.6,
+      tell:
+        "The {name}'s movements turn jerky and wild, weapon swinging in erratic sweeps.",
+    },
   ],
 };
 
-function createEnemyInstance(enemyId) {
-  const t = enemyTemplates[enemyId];
-  if (!t) return null;
-  return { ...deepClone(t), hp: t.maxHp };
-}
-
 function chooseEnemyIntent(enemy) {
-  const type = enemy?.type || "beast";
+  const type = enemy.type || "beast";
   const pool = enemyIntents[type] || enemyIntents.beast;
   return pool[roll(0, pool.length - 1)];
 }
 
 function telegraphEnemyIntent(enemy, intent) {
-  if (!enemy || !intent) return;
-  logSystem(intent.tell.replace("{name}", enemy.name));
+  if (!intent) return;
+  const line = intent.tell.replace("{name}", enemy.name);
+  logSystem(line);
+}
+
+function createEnemyInstance(enemyId) {
+  const tmpl = enemyTemplates[enemyId];
+  if (!tmpl) return null;
+  return {
+    id: tmpl.id,
+    name: tmpl.name,
+    type: tmpl.type || "beast",
+    maxHp: tmpl.maxHp,
+    hp: tmpl.maxHp,
+    atkMin: tmpl.atkMin,
+    atkMax: tmpl.atkMax,
+    xpReward: tmpl.xpReward,
+    description: tmpl.description,
+    isUndead: !!tmpl.isUndead,
+  };
 }
 
 function startCombat(enemyId) {
@@ -1122,112 +2040,145 @@ function startCombat(enemyId) {
 
   gameState.combat.inCombat = true;
   gameState.combat.enemy = enemy;
-  gameState.combat.intent = chooseEnemyIntent(enemy);
-  gameState.combat.previousLocation = gameState.location;
+  gameState.combat.intent = null;
 
-  logSystem([
-    "The air tightens. The room suddenly feels too small.",
-    `${enemy.name} steps out of the dark.`,
+  const intro = [
+    "The air tightens; the space around you suddenly feels too small.",
+    `${enemy.name} drags itself out of the dark, intent fixed entirely on you.`,
     "",
     enemy.description,
     "",
-    "Commands: attack, block, run (or use bandage).",
-  ].join("\n"));
+    "Type 'attack' to stand your ground, 'block' to brace, or 'run' if your courage falters.",
+  ].join("\n");
 
+  logSystem(intro);
+
+  gameState.combat.intent = chooseEnemyIntent(enemy);
   telegraphEnemyIntent(enemy, gameState.combat.intent);
-  scheduleSave();
 }
 
 function endCombat() {
   gameState.combat.inCombat = false;
   gameState.combat.enemy = null;
-  gameState.combat.intent = null;
   gameState.combat.previousLocation = null;
-  scheduleSave();
+  gameState.combat.intent = null;
+}
+
+function handlePlayerDeath() {
+  const deathDescriptions = [
+    "Your legs buckle. The world tilts. Warm blood pools beneath you as the cold earth drinks the last of your strength.",
+    "You collapse, vision swimming. Your breath rattles in your chest before fading into the dark.",
+  ];
+
+  logSystem(pickLine(deathDescriptions));
+  logSystem("Death claims you brutally in the dark halls of the Dawnspire...");
+  handleReset();
 }
 
 function gainXp(amount) {
   const p = gameState.player;
   p.xp += amount;
   logSystem(`You gain ${amount} XP.`);
-
   while (p.xp >= p.xpToLevel) {
     p.xp -= p.xpToLevel;
     p.level += 1;
-
-    // Leveling rule: +5 max HP per level
     p.maxHp += 5;
     p.hp = p.maxHp;
-
     p.xpToLevel = Math.round(p.xpToLevel * 1.3);
-    logSystem(`*** LEVEL UP: ${p.level}. Max HP is now ${p.maxHp}. ***`);
+    logSystem(`*** You reached level ${p.level}! Max HP is now ${p.maxHp}. ***`);
   }
-
   updateStatusBar();
 }
 
-function enemyTurn({ blocking = false } = {}) {
+function enemyTurn(blocking = false) {
   const enemy = gameState.combat.enemy;
   if (!enemy) return;
 
-  const intent = gameState.combat.intent || chooseEnemyIntent(enemy);
-  gameState.combat.intent = intent;
-
   const enemyType = enemy.type || "beast";
-  const enemyCrit = roll(1, 100) <= 15;
 
-  let dmg = roll(enemy.atkMin, enemy.atkMax);
-  dmg = Math.max(1, Math.round(dmg * (intent.damageMult || 1)));
-  if (enemyCrit) dmg *= 2;
+  let intent = gameState.combat.intent;
+  if (!intent) {
+    intent = chooseEnemyIntent(enemy);
+    gameState.combat.intent = intent;
+  }
+
+  const enemyCritChance = 15;
+  const enemyCrit = roll(1, 100) <= enemyCritChance;
+
+  let enemyDmg = roll(enemy.atkMin, enemy.atkMax);
+  enemyDmg = Math.max(1, Math.round(enemyDmg * (intent.damageMult || 1)));
+
+  if (enemyCrit) {
+    enemyDmg *= 2;
+  }
 
   if (blocking) {
     const blockMult = intent.blockMult != null ? intent.blockMult : 0.4;
-    dmg = Math.floor(dmg * blockMult);
+    enemyDmg = Math.floor(enemyDmg * blockMult);
+  }
 
-    // Buckler extra -1 vs beasts when blocking
-    if (enemyType === "beast" && isShieldEquipped("rust-buckler")) {
-      dmg = Math.max(0, dmg - 1);
-    }
-
-    // Spear extra -1 vs all when blocking
-    if (isWeaponEquipped("old-guard-spear")) {
-      dmg = Math.max(0, dmg - 1);
+  // Buckler bonus vs beasts while blocking
+  if (blocking && enemyType === "beast" && enemyDmg > 0) {
+    ensureEquipment();
+    const hasBuckler = gameState.player.equipment.shieldId === "rust-buckler";
+    if (hasBuckler) {
+      enemyDmg = Math.max(0, enemyDmg - 1);
     }
   }
 
-  const bucket = enemyCrit
-    ? (combatFlavor.enemy.crit[enemyType] || combatFlavor.enemy.crit.beast)
-    : (combatFlavor.enemy.normal[enemyType] || combatFlavor.enemy.normal.beast);
+  // Old Guard Spear passive reach block: -1 damage to any hit when equipped
+  const weapon = getEquippedWeapon();
+  const hasSpear = weapon && weapon.id === "old-guard-spear";
+  if (enemyDmg > 0 && hasSpear) {
+    enemyDmg = Math.max(0, enemyDmg - 1);
+  }
 
-  const line = pickOne(bucket).replace("{name}", enemy.name);
+  const enemyBucket = enemyCrit
+    ? combatFlavor.enemy.crit[enemyType] || combatFlavor.enemy.crit.beast
+    : combatFlavor.enemy.normal[enemyType] || combatFlavor.enemy.normal.beast;
 
-  if (dmg > 0) {
-    logSystem(blocking ? `${line} (${dmg} damage gets through your guard.)` : `${line} (${dmg} damage)`);
-    gameState.player.hp -= dmg;
+  const enemyLine = pickLine(enemyBucket).replace("{name}", enemy.name);
+
+  if (enemyDmg > 0) {
+    if (blocking) {
+      logSystem(`${enemyLine} (${enemyDmg} damage makes it through your guard.)`);
+    } else {
+      logSystem(`${enemyLine} (${enemyDmg} damage)`);
+    }
+
+    gameState.player.hp -= enemyDmg;
 
     if (gameState.player.hp <= 0) {
-      // Blessing: first lethal blow => set to 1 HP, deactivate
-      if (gameState.flags.shrineBlessingActive) {
+      // Check for shrine blessing (combat only)
+      if (gameState.flags && gameState.flags.shrineBlessingActive) {
         gameState.flags.shrineBlessingActive = false;
         gameState.player.hp = 1;
         updateStatusBar();
-        logSystem("Everything goes white-hot for a heartbeat. When it snaps back, you’re still standing—barely. The shrine’s blessing gutters out.");
+        logSystem(
+          "For a heartbeat everything goes white-hot. When the world snaps back into place, you’re still on your feet—barely. The crystal flame’s blessing gutters out inside you."
+        );
       } else {
         gameState.player.hp = 0;
         updateStatusBar();
-        return handlePlayerDeath();
+        handlePlayerDeath();
+        return;
       }
     }
 
     updateStatusBar();
-    logSystem(`HP: ${gameState.player.hp}/${gameState.player.maxHp}.`);
+    logSystem(
+      `Blood slicks your skin. HP: ${gameState.player.hp}/${gameState.player.maxHp}.`
+    );
+  } else if (blocking) {
+    logSystem(
+      "You brace and the blow glances off your guard, leaving only numb arms and a ringing in your bones."
+    );
   } else {
-    logSystem(blocking ? "You brace—nothing makes it through." : "The attack misses, scraping stone.");
+    logSystem("The enemy's wild motion fails to find flesh this time.");
   }
 
   gameState.combat.intent = chooseEnemyIntent(enemy);
   telegraphEnemyIntent(enemy, gameState.combat.intent);
-  scheduleSave();
 }
 
 function handleAttack() {
@@ -1240,549 +2191,1060 @@ function handleAttack() {
   const enemyType = enemy.type || "beast";
 
   const weapon = getEquippedWeapon();
-  const weaponAtk = weapon ? (weapon.atk || 0) : 0;
+  const weaponAtk = weapon ? weapon.atk : 0;
 
-  const isCrit = roll(1, 100) <= 20;
+  const critChance = 20;
+  const isCrit = roll(1, 100) <= critChance;
 
   let dmg = roll(1 + weaponAtk, 4 + weaponAtk);
-  if (isCrit) dmg = dmg * 2 + 1;
+  if (isCrit) {
+    dmg = dmg * 2 + 1;
+  }
+
+  // Flame-Touched Charm: light burst on crits
+  const hasCharm = gameState.inventory.some(
+    (item) => item && item.id === "flame-touched-charm"
+  );
+  if (isCrit && hasCharm) {
+    const bonus = enemy.isUndead ? 3 : 2;
+    dmg += bonus;
+    logSystem(
+      "The Flame-Touched Charm at your throat flares, pouring a lance of pale fire down your arm and into the strike."
+    );
+  }
 
   enemy.hp -= dmg;
 
-  const bucket = isCrit
-    ? (combatFlavor.player.crit[enemyType] || combatFlavor.player.crit.beast)
-    : (combatFlavor.player.normal[enemyType] || combatFlavor.player.normal.beast);
+  const playerBucket = isCrit
+    ? combatFlavor.player.crit[enemyType] || combatFlavor.player.crit.beast
+    : combatFlavor.player.normal[enemyType] || combatFlavor.player.normal.beast;
 
-  logSystem(`${pickOne(bucket).replace("{name}", enemy.name)} (${dmg} damage)`);
+  const playerLine = pickLine(playerBucket).replace("{name}", enemy.name);
+  logSystem(`${playerLine} (${dmg} damage)`);
 
   if (enemy.hp <= 0) {
-    logSystem(pickOne([`The ${enemy.name} collapses in a heap.`, `The ${enemy.name} falls still.`]));
+    const deathLines = [
+      `The ${enemy.name} hits the ground in a broken heap.`,
+      `The ${enemy.name} twitches once, then lies still.`,
+    ];
+    logSystem(pickLine(deathLines));
     const xp = enemy.xpReward || 0;
-    if (xp) gainXp(xp);
+    if (xp > 0) gainXp(xp);
 
-    if (handleWaveContinuation()) return;
+    // Multi-rat fight in Vestibule
+    if (
+      gameState.location === "rat_gnawed_vestibule" &&
+      gameState.flags &&
+      gameState.flags.vestibuleRatsRemaining &&
+      gameState.flags.vestibuleRatsRemaining > 1
+    ) {
+      gameState.flags.vestibuleRatsRemaining--;
 
-    markRoomCombatCleared();
+      const newEnemy = createEnemyInstance("dawnspire_rat");
+      gameState.combat.enemy = newEnemy;
+      gameState.combat.intent = null;
+
+      logSystem(
+        "Something else skitters in the gnawed stone. Another tunnel-rat claws its way out of a hole, drawn by the blood."
+      );
+
+      gameState.combat.intent = chooseEnemyIntent(newEnemy);
+      telegraphEnemyIntent(newEnemy, gameState.combat.intent);
+      return;
+    }
+
+    if (gameState.location === "rat_gnawed_vestibule") {
+      gameState.flags.vestibuleCombatDone = true;
+    }
+
+    // Multi-soldier fight in Broken Barracks
+    if (
+      gameState.location === "broken_barracks" &&
+      gameState.flags &&
+      gameState.flags.barracksSoldiersRemaining &&
+      gameState.flags.barracksSoldiersRemaining > 1
+    ) {
+      gameState.flags.barracksSoldiersRemaining--;
+
+      const newEnemy = createEnemyInstance("desiccated_soldier");
+      gameState.combat.enemy = newEnemy;
+      gameState.combat.intent = null;
+
+      logSystem(
+        "Another desiccated soldier hauls itself upright from a nearby bunk, jaw hanging open in a soundless shout."
+      );
+
+      gameState.combat.intent = chooseEnemyIntent(newEnemy);
+      telegraphEnemyIntent(newEnemy, gameState.combat.intent);
+      return;
+    }
+
+    if (gameState.location === "broken_barracks") {
+      gameState.flags.barracksFightCleared = true;
+    }
+
+    // Lantern Muster Hall – Hollow Lantern-Bearer cleared
+    if (gameState.location === "lantern_muster_hall") {
+      gameState.flags.lanternMusterFightCleared = true;
+    }
+
     endCombat();
     return;
   }
 
-  enemyTurn({ blocking: false });
-}
-
-function handleBlock() {
-  if (!gameState.combat.inCombat || !gameState.combat.enemy) {
-    logSystem("You raise your guard against nothing.");
-    return;
-  }
-  logSystem("You brace, muscles locked, waiting for impact.");
-  enemyTurn({ blocking: true });
+  enemyTurn(false);
 }
 
 function handleRun() {
   if (!gameState.combat.inCombat || !gameState.combat.enemy) {
-    logSystem("There is nothing to run from.");
+    logSystem("There is nothing to run from right now.");
     return;
   }
 
-  const success = roll(1, 100) <= 60;
-  if (success) {
-    const prev = gameState.combat.previousLocation;
-    logSystem("You bolt from the fight, scrambling away!");
+  const successRoll = roll(1, 100);
+  if (successRoll <= 60) {
+    const prev = gameState.combat.previousLocation || "dark_forest_edge";
+    logSystem("You turn and bolt, scrambling away from the fight!");
     endCombat();
-    if (prev) enterRoom(prev);
+    gameState.location = prev;
+    describeLocation();
+  } else {
+    logSystem("You try to flee, but the enemy cuts you off!");
+    enemyTurn(false);
+  }
+}
+
+function handleBlock() {
+  if (!gameState.combat.inCombat || !gameState.combat.enemy) {
+    logSystem("You raise your guard against nothing but your own nerves.");
     return;
   }
 
-  logSystem("You try to flee, but it cuts you off!");
-  enemyTurn({ blocking: false });
+  logSystem("You tighten your stance, weapon raised, bracing for whatever comes next.");
+  enemyTurn(true);
 }
 
-// waves
-function handleWaveContinuation() {
-  const loc = gameState.location;
+// =========================
+// Rest system
+// =========================
 
-  if (loc === "rat_gnawed_vestibule" && gameState.flags.vestibuleRatsRemaining > 1) {
-    gameState.flags.vestibuleRatsRemaining -= 1;
-    const next = createEnemyInstance("dawnspire_rat");
-    gameState.combat.enemy = next;
-    gameState.combat.intent = chooseEnemyIntent(next);
-    logSystem("More skittering—another tunnel-rat claws its way out, drawn by the blood.");
-    telegraphEnemyIntent(next, gameState.combat.intent);
-    return true;
+function handleRest() {
+  if (gameState.combat.inCombat) {
+    logSystem("You can't rest while something is trying to tear you apart.");
+    return;
   }
 
-  if (loc === "broken_barracks" && gameState.flags.barracksSoldiersRemaining > 1) {
-    gameState.flags.barracksSoldiersRemaining -= 1;
-    const next = createEnemyInstance("desiccated_soldier");
-    gameState.combat.enemy = next;
-    gameState.combat.intent = chooseEnemyIntent(next);
-    logSystem("A second soldier drags itself upright, joints cracking dryly.");
-    telegraphEnemyIntent(next, gameState.combat.intent);
-    return true;
+  const p = gameState.player;
+
+  if (p.hp >= p.maxHp) {
+    logSystem("You're already as patched up as you're going to get.");
+    return;
   }
 
-  return false;
+  const hadRation = consumeItemByType("ration");
+  if (!hadRation) {
+    logSystem("You rummage through your pack, but there's nothing left to eat.");
+    return;
+  }
+
+  p.hp = p.maxHp;
+  updateStatusBar();
+
+  const restLines = [
+    "You find a patch of ground that isn't completely soaked or sharp, chew through a tasteless ration, and breathe until the shaking slows.",
+    "You sit with your back to cold stone, chew down a ration that tastes of dust and salt, and let time drag past in the dark.",
+  ];
+
+  logSystem(pickLine(restLines));
+  logSystem(`HP fully restored: ${p.hp}/${p.maxHp}.`);
 }
 
-function markRoomCombatCleared() {
+// =========================
+// Movement
+// =========================
+
+function handleGo(direction) {
+  direction = normalizeDirection(direction);
+
+  if (gameState.combat.inCombat) {
+    logSystem(
+      "You're a little busy not dying right now. Try 'attack', 'block', or 'run'."
+    );
+    return;
+  }
+
   const loc = gameState.location;
-  if (loc === "rat_gnawed_vestibule") gameState.flags.vestibuleCombatDone = true;
-  if (loc === "broken_barracks") gameState.flags.barracksCombatDone = true;
-  if (loc === "lantern_muster_hall") gameState.flags.musterCombatDone = true;
-  scheduleSave();
+  const stairsCollapsed = !!gameState.flags.stairsCollapsed;
+
+  // village <-> forest
+  if (loc === "village_square" && direction === "north") {
+    gameState.location = "dark_forest_edge";
+    logSystem("You walk north, leaving the safety of Briar's Edge behind...");
+    describeLocation();
+
+    // Only grant this travel XP once
+    if (!gameState.flags.villageToForestXp) {
+      gameState.flags.villageToForestXp = true;
+      gainXp(5);
+    }
+    return;
+  }
+
+  if (loc === "dark_forest_edge" && direction === "south") {
+    gameState.location = "village_square";
+    logSystem("You walk back south, returning to the village square.");
+    describeLocation();
+    return;
+  }
+
+  // forest -> surface ring
+  if (loc === "dark_forest_edge" && direction === "north") {
+    const fromLocation = gameState.location;
+
+    gameState.location = "dungeon_entrance";
+    logSystem(
+      "You follow the path to the quake-torn clearing. The broken stone ring looms ahead..."
+    );
+    describeLocation();
+
+    if (!gameState.flags.firstDungeonFightDone) {
+      gameState.flags.firstDungeonFightDone = true;
+      gameState.combat.previousLocation = fromLocation;
+      startCombat("dawnspire_rat");
+    }
+    return;
+  }
+
+  // surface ring -> forest
+  if (loc === "dungeon_entrance" && direction === "south") {
+    if (stairsCollapsed) {
+      reportStairsCollapsed();
+      return;
+    }
+    gameState.location = "dark_forest_edge";
+    logSystem("You climb back up out of the broken ring and return to the forest edge.");
+    describeLocation();
+    return;
+  }
+
+  // surface ring -> Room 1
+  if (loc === "dungeon_entrance" && direction === "down") {
+    if (stairsCollapsed) {
+      reportStairsCollapsed();
+      return;
+    }
+    gameState.location = "broken_ring_descent";
+    logSystem("You step onto the worn stone steps and begin the descent into the Dawnspire.");
+    describeLocation();
+    return;
+  }
+
+  // Room 1 -> surface
+  if (loc === "broken_ring_descent" && direction === "up") {
+    if (stairsCollapsed) {
+      reportStairsCollapsed();
+      return;
+    }
+    gameState.location = "dungeon_entrance";
+    logSystem("You climb back toward the broken ring, each step heavier than the last.");
+    describeLocation();
+    return;
+  }
+
+  // Room 1 -> Room 2
+  if (loc === "broken_ring_descent" && direction === "down") {
+    gameState.location = "cracked_landing";
+    logSystem("You descend further until the stairwell opens into a small, fractured ledge.");
+    describeLocation();
+    return;
+  }
+
+  // Room 2
+  if (loc === "cracked_landing") {
+    if (direction === "up") {
+      if (stairsCollapsed) {
+        reportStairsCollapsed();
+        return;
+      } else {
+        gameState.location = "broken_ring_descent";
+        logSystem("You climb back up the spiral toward the faint memory of light above.");
+        describeLocation();
+        return;
+      }
+    }
+
+    if (direction === "down" || direction === "forward") {
+      const firstTimeLeavingDeeper = !stairsCollapsed;
+
+      gameState.location = "collapsed_stairwell";
+
+      if (firstTimeLeavingDeeper) {
+        gameState.flags.stairsCollapsed = true;
+        logSystem(
+          "As you step off the landing, a deep groan rolls through the stone. The stairwell shudders violently."
+        );
+        logSystem("Above, blocks crash down, choking the upper stair in dust and rubble.");
+        reportStairsCollapsed();
+      }
+
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 3
+  if (loc === "collapsed_stairwell") {
+    if (direction === "up") {
+      gameState.location = "cracked_landing";
+      logSystem(
+        "You climb back up to the cracked landing, dust sifting down from the ruined stair above."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "down" || direction === "forward") {
+      const alive = runCollapsedStairTrap();
+      if (!alive) return;
+
+      gameState.location = "rat_gnawed_vestibule";
+      logSystem(
+        "Shaking the last of the dust from your shoulders, you push deeper down the warped stair into the gnawed stone ahead."
+      );
+      describeLocation();
+
+      if (!gameState.flags.firstVestibuleVisit) {
+        startVestibuleFight();
+      }
+
+      return;
+    }
+  }
+
+  // Room 4
+  if (loc === "rat_gnawed_vestibule") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "collapsed_stairwell";
+      logSystem("You edge back toward the twisted stair, leaving the chewed tunnels behind.");
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      gameState.location = "gnawed_storeroom";
+      logSystem("You push through a low, tooth-scored arch into a cramped side chamber.");
+      const alive = runGnawedStoreroomTrap();
+      if (!alive) return;
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north") {
+      gameState.location = "outer_hall_lanterns";
+      logSystem(
+        "You follow a tunnel that climbs and straightens, the gnawed stone giving way to a long hall of dead lantern brackets."
+      );
+      describeLocation();
+
+      if (!gameState.flags.outerHallFirstCheck) {
+        gameState.flags.outerHallFirstCheck = true;
+        const spawn = roll(1, 100) <= 60;
+        if (spawn) {
+          gameState.combat.previousLocation = "rat_gnawed_vestibule";
+          logSystem(
+            "From behind a cracked lantern base, something hairless and starving peels itself off the stone."
+          );
+          startCombat("dawnspire_rat");
+        } else {
+          logSystem(
+            "For once, nothing immediately slinks out of the dark to meet you. The hall only watches, empty and patient."
+          );
+        }
+      }
+
+      return;
+    }
+  }
+
+  // Room 5
+  if (loc === "gnawed_storeroom") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "rat_gnawed_vestibule";
+      logSystem("You pick your way back through the low arch, leaving the bone-littered storeroom behind.");
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 6
+  if (loc === "outer_hall_lanterns") {
+    if (direction === "south") {
+      gameState.location = "rat_gnawed_vestibule";
+      logSystem(
+        "You retrace your steps, letting the dead lanterns fade behind as you slip back toward the gnawed vestibule."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      gameState.location = "flicker_node";
+      logSystem(
+        "You follow the faint sense of tension in the stone until the hall cinches down around a single intact lantern."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north") {
+      gameState.location = "door_failed_light";
+      logSystem(
+        "You move north until the hall ends in a heavy stone door carved with a fractured sunburst and three dead crystal sockets."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 7
+  if (loc === "flicker_node") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "outer_hall_lanterns";
+      logSystem(
+        "You back out of the cramped junction, letting the single lantern slip from view as the longer hall opens again."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north") {
+      gameState.location = "mirror_gallery";
+      logSystem(
+        "You move north, following where the lantern’s cracked mirror panel points. The stone opens into a hall lined with tall, damaged mirrors."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 8
+  if (loc === "door_failed_light") {
+    if (direction === "south" || direction === "back") {
+      gameState.location = "outer_hall_lanterns";
+      logSystem(
+        "You step back from the carved sunburst, letting the weight of the sealed door fall behind you."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north" || direction === "forward") {
+      const beam7 = !!gameState.flags.flickerShardAligned;
+      const beam9 = !!gameState.flags.mirrorShardAligned;
+      const beam10 = !!gameState.flags.deepNodeShardAligned;
+      const lit = (beam7 ? 1 : 0) + (beam9 ? 1 : 0) + (beam10 ? 1 : 0);
+
+      if (lit === 0) {
+        logSystem(
+          "You press your weight against the stone. It doesn't so much as shiver. With all three sockets blind, there's nothing here for the door to listen to."
+        );
+      } else if (lit === 1) {
+        logSystem(
+          "As you strain against the door, one socket gives off the faintest warmth. Lines in the stone glow dull red before fading. Not enough."
+        );
+      } else if (lit === 2) {
+        logSystem(
+          "Two sockets flare weakly, light crawling along carved channels. Something shifts deep within—and then locks again. The third socket stays dead."
+        );
+      } else {
+        logSystem(
+          "All three sockets blaze with buried light. The sunburst seems to swell, rays sharpening, but for now the door remains a promise instead of a path."
+        );
+      }
+      return;
+    }
+  }
+
+  // Room 9
+  if (loc === "mirror_gallery") {
+    if (direction === "south" || direction === "back") {
+      gameState.location = "flicker_node";
+      logSystem(
+        "You step back out of the broken reflections and return to the tight junction where the beam begins."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      gameState.location = "shard_niche";
+      logSystem(
+        "You follow the eastward corridor as it tightens, stone smoothing under your fingertips until it spills you into a small circular niche around a single pedestal."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 10
+  if (loc === "shard_niche") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "mirror_gallery";
+      logSystem(
+        "You leave the little circle of stone and its waiting pedestal behind, slipping back toward the hall of mirrors."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north") {
+      gameState.location = "fallen_guard_post";
+      logSystem(
+        "You take the short northern passage into a low room that still smells faintly of drill and duty."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 11
+  if (loc === "fallen_guard_post") {
+    if (direction === "south" || direction === "back") {
+      gameState.location = "shard_niche";
+      logSystem(
+        "You step away from the overturned table and the hanging bell, slipping back toward the shard-lit niche."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      gameState.location = "broken_barracks";
+      logSystem(
+        "You pick your way past the scattered spears and push through a narrow doorway into a longer chamber lined with ruined bunks."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 12
+  if (loc === "broken_barracks") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "fallen_guard_post";
+      logSystem(
+        "You leave the broken bunks behind and step back into the cramped guard post and its cracked bell."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north") {
+      gameState.location = "lantern_muster_hall";
+      logSystem(
+        "You move past the last line of ruined bunks into a broader chamber hung with tattered banners."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 13
+  if (loc === "lantern_muster_hall") {
+    if (direction === "south" || direction === "back") {
+      gameState.location = "broken_barracks";
+      logSystem(
+        "You step away from the cracked floor-map and faded banners, returning to the broken barracks."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      gameState.location = "armory_of_dust";
+      logSystem(
+        "You push through a squat doorway flanked by empty weapon racks into a lower, dust-choked chamber of rust and ruin."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north") {
+      gameState.location = "watch_balcony";
+      logSystem(
+        "You climb a narrow stair that hugs the wall, emerging onto a stone balcony that hangs over a gulf of darkness."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 14 – Armory of Dust
+  if (loc === "armory_of_dust") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "lantern_muster_hall";
+      logSystem(
+        "You leave the rust-thick air of the armory behind and step back into the banner-hung muster hall."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      if (!gameState.flags.armorySecretRevealed) {
+        logSystem(
+          "You press along the eastern wall, but all you find are solid stone and flakes of ancient rust."
+        );
+        return;
+      }
+
+      gameState.location = "hidden_shrine_flame";
+      logSystem(
+        "You drop to hands and knees and squeeze through the low gap between collapsed racks, stone scraping your shoulders until the world opens just enough to stand again."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 15 – Watch Balcony
+  if (loc === "watch_balcony") {
+    if (direction === "south" || direction === "back") {
+      gameState.location = "lantern_muster_hall";
+      logSystem(
+        "You retreat from the cracked parapet and take the stair back down into the muster hall."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east" || direction === "down" || direction === "forward") {
+      gameState.location = "upper_cistern_walk";
+      logSystem(
+        "You take the narrow stair that spirals down along the chasm wall, each step damp and slick, until it spills you onto a ledge above the cistern."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 16 – Hidden Shrine to the Flame
+  if (loc === "hidden_shrine_flame") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "armory_of_dust";
+      logSystem(
+        "You duck back into the tight crawlspace, dragging yourself through grit and old ash until the broader shape of the armory opens around you again."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 18 – Upper Cistern Walk
+  if (loc === "upper_cistern_walk") {
+    if (direction === "west" || direction === "up" || direction === "back") {
+      gameState.location = "watch_balcony";
+      logSystem(
+        "You edge back along the wet stone ledge and climb the narrow stair, returning to the balcony above the hollow."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  logSystem("You can't go that way.");
 }
 
-// combat triggers by room
-function startVestibuleFight() {
-  const two = roll(1, 100) <= 50;
-  gameState.flags.vestibuleRatsRemaining = two ? 2 : 1;
-  logSystem(two ? "Two starved tunnel-rats spill out of the gnawed tunnels!" : "A single starved tunnel-rat lunges from the darkness!");
-  startCombat("dawnspire_rat");
-}
-function startBarracksFight() {
-  const two = roll(1, 100) <= 50;
-  gameState.flags.barracksSoldiersRemaining = two ? 2 : 1;
-  logSystem(two ? "Two desiccated soldiers rise from ruined bunks!" : "A desiccated soldier pulls itself upright with a rasp of bone!");
-  startCombat("desiccated_soldier");
-}
-function startLanternBearerFight() {
-  logSystem("A Hollow Lantern-Bearer steps forward, lantern burning with pale hatred.");
-  startCombat("hollow_lantern_bearer");
-}
-
-// ============================================================
-// MODULE 6 — COMMANDS (use/equip/search/rest/reset/adjust/ring)
-// ============================================================
-
-function normalizeDir(d) {
-  const x = (d || "").toLowerCase();
-  const map = { n: "north", s: "south", e: "east", w: "west", u: "up", d: "down", f: "forward", b: "back" };
-  return map[x] || x;
-}
+// =========================
+// Help / name / reset
+// =========================
 
 function handleHelp() {
-  logSystem([
-    "Available commands:",
-    "  help               - show this help",
-    "  look               - describe your surroundings (or current foe)",
-    "  inventory (inv)    - list items",
-    "  go <direction>     - move (north,south,east,west,up,down)",
-    "  name <your name>   - set your name",
-    "  attack             - attack (combat only)",
-    "  block              - block (combat only)",
-    "  run                - attempt to flee (combat only)",
-    "  rest               - consume a ration to fully restore HP",
-    "  use <item>         - use an item (bandage, shard, door, etc.)",
-    "  equip <item>       - equip a weapon or shield (e.g., spear, buckler, sword)",
-    "  adjust <target>    - adjust mechanisms (e.g., 'adjust mirrors east')",
-    "  ring <thing>       - ring something where it exists (e.g., 'ring bell')",
-    "  search             - search the area",
-    "  reset              - wipe progress and restart",
-  ].join("\n"));
+  logSystem(
+    [
+      "Available commands:",
+      "  help               - show this help",
+      "  look               - describe your surroundings or current foe",
+      "  inventory (or inv) - show your items",
+      "  go <direction>     - move (north, south, east, west, up, down, forward, back) (also n/s/e/w/u/d/f/b)",
+      "  name <your name>   - set your name",
+      "  attack             - attack the enemy in combat",
+      "  block              - brace to blunt the enemy's next attack",
+      "  run                - attempt to flee from combat",
+      "  rest               - consume a ration to fully restore your HP",
+      "  use <item>         - use an item (e.g., 'use bandage', 'use shard', 'use draught', 'use journal')",
+      "  use <number>       - use by inventory number (from 'inventory')",
+      "  equip <item>       - equip a weapon or shield (e.g., 'equip buckler', 'equip spear', 'equip sword')",
+      "  equip <number>     - equip by inventory number (from 'inventory')",
+      "  adjust <target>    - adjust mechanisms (e.g., 'adjust mirrors east', 'adjust mirrors door')",
+      "  ring <thing>       - ring something, where appropriate (e.g., 'ring bell' in the guard post)",
+      "  search             - search the area for hidden things (and problems)",
+      "  reset              - wipe your progress and restart",
+    ].join("\n")
+  );
 }
 
-function handleName(nameRaw) {
-  const name = (nameRaw || "").trim();
-  if (!name) {
+function handleName(name) {
+  const n = String(name || "").trim();
+  if (!n) {
     logSystem("You must provide a name. Example: name Six");
     return;
   }
-  gameState.player.name = name;
+  gameState.player.name = n.slice(0, 32);
+  logSystem(`You will be known as ${gameState.player.name}.`);
   updateStatusBar();
-  logSystem(`You will be known as ${name}.`);
-  scheduleSave();
 }
 
-function handleLook() {
-  if (gameState.combat.inCombat && gameState.combat.enemy) {
-    const e = gameState.combat.enemy;
-    logSystem(`${e.name}\n${e.description}\n\nIt has ${e.hp}/${e.maxHp} HP remaining.`);
-    return;
-  }
-  enterRoom(gameState.location); // re-describe current room + triggers (triggers are self-guarded)
+// Intro / story
+function showIntro() {
+  const introText = [
+    "Briar's Edge is a quiet village on the very edge of the Shaded Frontier, where the empire's maps fade into wilderness.",
+    "",
+    "You grew up hearing stories of the Lantern Knights, wanderers who carried crystal lanterns into the deep woods to fight back the dark.",
+    "",
+    "Recently, rumors spread of an ancient ruin unearthed after a quake: a stone ring jutting from the earth, leading down into what people now call the Dawnspire Below.",
+    "",
+    "Armed with a rust-flecked sword and an oversized pack, you step toward the forest's edge.",
+    "",
+    "Somewhere far below, something stirs, waiting for you to arrive.",
+  ].join("\n");
+
+  logSystem(introText);
+  describeLocation();
 }
 
-function handleInventory() {
-  const inv = gameState.inventory || [];
-  if (!inv.length) {
-    logSystem("Your inventory is empty.");
-    return;
-  }
-
-  const grouped = new Map();
-  for (const item of inv) {
-    const key = item.id || item.name;
-    if (!grouped.has(key)) grouped.set(key, { item, count: 0 });
-    grouped.get(key).count++;
-  }
-
-  const lines = [];
-  let idx = 1;
-  for (const { item, count } of grouped.values()) {
-    const label = count > 1 ? `${item.name} (${count})` : item.name;
-    lines.push(`${idx}. ${label}`);
-    idx++;
-  }
-
-  const weapon = getEquippedWeapon();
-  const offhand = gameState.equipment.offhand ? getItemById(gameState.equipment.offhand) : null;
-
-  logSystem("You are carrying:\n" + lines.join("\n"));
-  logSystem(`Equipped: ${weapon ? weapon.name : "None"}${offhand ? ` + ${offhand.name}` : ""}`);
-}
-
-function handleGoWrapper(dirRaw) {
-  const dir = normalizeDir(dirRaw);
-  if (!dir) {
-    logSystem("Go where? (north, south, east, west, up, down)");
-    return;
-  }
-  if (gameState.combat.inCombat) {
-    logSystem("You're a little busy not dying right now. Try 'attack', 'block', or 'run'.");
-    return;
-  }
-  goDirection(dir);
-}
-
-function handleSearch() {
-  // Light, simple, once-per-room “flavor” searches
-  const loc = gameState.location;
-  if (loc === "fallen_guard_post") {
-    logSystem("You sift the debris. The bell still hangs — tarnished, but intact.");
-    return;
-  }
-  if (loc === "failed_light_door") {
-    logSystem("You brush dust from the sockets. They look like they once held focused crystal light.");
-    return;
-  }
-  logSystem("You search the area, but find nothing new.");
-}
-
-function handleEquip(argRaw) {
-  const arg = (argRaw || "").toLowerCase().trim();
-  if (!arg) {
-    logSystem("Equip what? Example: equip spear");
-    return;
-  }
-
-  // match by name/id
-  const match = gameState.inventory.find((i) =>
-    (i.name || "").toLowerCase().includes(arg) || (i.id || "").toLowerCase().includes(arg)
-  );
-
-  if (!match) {
-    logSystem("You don't seem to have that.");
-    return;
-  }
-
-  if (match.type === "weapon") {
-    gameState.equipment.weapon = match.id;
-    logSystem(`You equip: ${match.name}.`);
-    scheduleSave();
-    return;
-  }
-
-  if (match.type === "shield") {
-    gameState.equipment.offhand = match.id;
-    logSystem(`You ready: ${match.name}.`);
-    scheduleSave();
-    return;
-  }
-
-  logSystem("That can't be equipped.");
-}
-
-function handleAdjust(argRaw) {
-  const arg = (argRaw || "").trim();
-  if (!arg) {
-    logSystem("Adjust what? Example: adjust mirrors east");
-    return;
-  }
-  if (arg.toLowerCase().includes("mirror")) {
-    handleAdjustMirrors(arg);
-    scheduleSave();
-    return;
-  }
-  logSystem("Nothing here seems adjustable.");
-}
-
-function handleRing(argRaw) {
-  const arg = (argRaw || "").toLowerCase().trim();
-  if (!arg) {
-    logSystem("Ring what? Example: ring bell");
-    return;
-  }
-  if (gameState.location === "fallen_guard_post" && arg.includes("bell")) {
-    logSystem("You ring the cracked bell. The sound limps out into the dark… and dies.");
-    return;
-  }
-  logSystem("You ring nothing but the air.");
-}
-
-function handleRest() {
-  if (!consumeItemByType("ration")) {
-    logSystem("You have no rations to rest with.");
-    return;
-  }
-  gameState.player.hp = gameState.player.maxHp;
-  updateStatusBar();
-  logSystem("You choke down a ration and force your breath steady. You feel whole again.");
-  scheduleSave();
-}
-
+// Reset / wipe save
 function handleReset() {
-  try {
-    localStorage.removeItem(getSaveKey());
-  } catch {}
-  // reset by reloading page statefully
-  gameState.player = deepClone({
-    name: "Adventurer", level: 1, xp: 0, xpToLevel: 100, hp: 20, maxHp: 20,
-  });
-  gameState.inventory = deepClone([
+  logSystem("Wiping your progress and starting a new run...");
+
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+
+  gameState.player = {
+    name: "Adventurer",
+    level: 1,
+    xp: 0,
+    xpToLevel: 100,
+    hp: 20,
+    maxHp: 20,
+    equipment: {
+      weaponId: null,
+      shieldId: null,
+    },
+  };
+
+  gameState.inventory = [
     { id: "rusty-sword", name: "Rusty Sword", type: "weapon", atk: 1 },
     { id: "ration", name: "Travel Ration", type: "ration" },
     { id: "ration", name: "Travel Ration", type: "ration" },
-  ]);
-  gameState.equipment = deepClone({ weapon: "rusty-sword", offhand: null });
+  ];
   gameState.location = "village_square";
-  gameState.flags = deepClone({
-    gotLanternBadge: false,
-    collapsedStairTrapDone: false,
-    vestibuleCombatDone: false,
-    vestibuleRatsRemaining: 0,
-    gotVestibuleLoot: false,
-    storeroomTrapDone: false,
-    gotStoreroomLoot: false,
-    flickerLootDone: false,
-    flickerShardAligned: false,
-    mirrorToNiche: false,
-    mirrorToDoor: false,
-    nicheShardTaken: false,
-    nicheShardSeated: false,
-    guardSpearTaken: false,
-    barracksCombatDone: false,
-    barracksSoldiersRemaining: 0,
-    musterLoreDone: false,
-    musterCombatDone: false,
-    armoryTrapDone: false,
-    armoryLootDone: false,
-    gotProvisionRations: false,
-    shrineUsed: false,
-    shrineBlessingActive: false,
-  });
-  gameState.combat = deepClone({ inCombat: false, enemy: null, previousLocation: null, intent: null });
+  gameState.flags = {};
+  gameState.combat = {
+    inCombat: false,
+    enemy: null,
+    previousLocation: null,
+    intent: null,
+  };
 
+  ensureEquipment();
   updateStatusBar();
-  logSystem("Your progress is wiped. You return to the surface.");
-  enterRoom(gameState.location);
+  showIntro();
   scheduleSave();
 }
 
-// ============================================================
-// CHANGE 3: extendedUseSystem used BOTH in and out of combat
-// ============================================================
+// =========================
+// Command parser
+// =========================
 
-function extendedUseSystem(argRaw, inCombat) {
-  const arg = (argRaw || "").toLowerCase().trim();
-
-  // shrine
-  if ((arg.includes("shard") || arg.includes("crystal")) && gameState.location === "hidden_shrine") {
-    return useShardAtShrine();
-  }
-
-  // flicker node — align beam
-  if ((arg.includes("shard") || arg.includes("crystal")) && gameState.location === "flicker_node") {
-    if (!playerHasAnyShard()) {
-      logSystem("You press empty fingers to the lantern fixture. Nothing happens.");
-      return;
+function handleCombatCommand(cmd, raw) {
+  switch (cmd) {
+    case "attack":
+      handleAttack();
+      break;
+    case "block":
+      handleBlock();
+      break;
+    case "run":
+      handleRun();
+      break;
+    case "use": {
+      const argStr = raw.slice(4).trim();
+      handleUse(argStr, { inCombat: true });
+      break;
     }
-    gameState.flags.flickerShardAligned = true;
-    logSystem("You set a shard into the lantern — a thin beam leaps north into the dark.");
-    scheduleSave();
-    return;
-  }
-
-  // shard niche — seat shard
-  if ((arg.includes("shard") || arg.includes("crystal")) && gameState.location === "shard_niche") {
-    if (!playerHasAnyShard()) {
-      logSystem("You don't have a shard to seat.");
-      return;
+    case "ring": {
+      const argStr = raw.slice(5).trim();
+      handleRing(argStr, { inCombat: true });
+      break;
     }
-    gameState.flags.nicheShardSeated = true;
-    logSystem("You set a shard into the socket. Its fractures are ready to split incoming light.");
-    scheduleSave();
-    return;
+    case "equip":
+      logSystem(
+        "You don't have time to fumble with gear while something is trying to open you up."
+      );
+      break;
+    case "adjust":
+      logSystem("You don't have the luxury of fiddling with mechanisms mid-fight.");
+      break;
+    case "look":
+      handleLook();
+      break;
+    case "inventory":
+    case "inv":
+      handleInventory();
+      break;
+    case "help":
+      handleHelp();
+      break;
+    case "rest":
+      logSystem("You can't rest while something is trying to rip you open.");
+      break;
+    case "search":
+      logSystem("You can't spare the attention to search right now.");
+      break;
+    default:
+      logSystem(
+        "In the heat of battle, that command makes no sense. Try 'attack', 'block', 'run', or 'use bandage'."
+      );
+      break;
   }
-
-  // bandage (usable in/out of combat)
-  if (arg.includes("bandage")) {
-    const idx = findItemIndexById("dirty-bandage");
-    if (idx === -1) {
-      logSystem("You don't have a bandage.");
-      return;
-    }
-    const heal = gameState.inventory[idx].heal || 4;
-    gameState.inventory.splice(idx, 1);
-
-    const before = gameState.player.hp;
-    gameState.player.hp = Math.min(gameState.player.maxHp, gameState.player.hp + heal);
-    updateStatusBar();
-    logSystem(`You wrap the wound. (+${gameState.player.hp - before} HP)`);
-    scheduleSave();
-    return;
-  }
-
-  // door interactions
-  if ((arg.includes("door") || arg.includes("sunburst")) && gameState.location === "failed_light_door") {
-    return tryOpenFailedLightDoor();
-  }
-
-  // default
-  if (inCombat) logSystem("You fumble for an item, but nothing happens.");
-  else logSystem("Nothing happens.");
 }
 
-// ============================================================
-// MODULE 6B — MAIN COMMAND DISPATCH
-// ============================================================
-
-function handleCombatCommand(cmd, rawLine) {
-  const c = (cmd || "").toLowerCase();
-
-  if (c === "attack") return handleAttack();
-  if (c === "block") return handleBlock();
-  if (c === "run") return handleRun();
-
-  if (c === "use") {
-    const arg = (rawLine || "").slice(4).trim();
-    return extendedUseSystem(arg, true);
-  }
-
-  logSystem("That makes no sense in a fight. Try: attack, block, run, use <item>.");
-}
-
-function handleCommand(rawLine) {
-  const input = (rawLine || "").trim();
+function handleCommand(raw) {
+  const input = String(raw || "").trim();
   if (!input) return;
 
   logCommand(input);
 
-  const lower = input.toLowerCase();
-  const [cmd, ...rest] = lower.split(/\s+/);
+  const [cmdRaw, ...rest] = input.toLowerCase().split(/\s+/);
+  const cmd = cmdRaw;
   const argStr = rest.join(" ");
-  const rawArgStr = input.split(/\s+/).slice(1).join(" "); // preserves case
 
-  // combat routing
   if (gameState.combat.inCombat) {
-    handleCombatCommand(cmd, input);
+    handleCombatCommand(cmd, raw);
     scheduleSave();
     return;
   }
 
   switch (cmd) {
-    case "help": handleHelp(); break;
-
+    case "help":
+      handleHelp();
+      break;
     case "look":
-    case "l": handleLook(); break;
-
+      handleLook();
+      break;
     case "inventory":
     case "inv":
-    case "i": handleInventory(); break;
-
+    case "i":
+      handleInventory();
+      break;
     case "go":
-    case "move":
-      if (!rest.length) logSystem("Go where? (north, south, east, west, up, down)");
-      else handleGoWrapper(rest[0]);
+      if (!rest.length) {
+        logSystem("Go where? (north, south, east, west, up, down, forward, back)");
+      } else {
+        handleGo(rest[0]);
+      }
       break;
-
-    // allow direction alone
-    case "north":
-    case "south":
-    case "east":
-    case "west":
-    case "up":
-    case "down":
-      handleGoWrapper(cmd);
-      break;
-
     case "name":
-      handleName(rawArgStr);
+      handleName(raw.slice(5).trim());
       break;
-
+    case "attack":
+      logSystem("There's nothing here to attack.");
+      break;
+    case "block":
+      logSystem(
+        "You square your shoulders and raise your guard. Nothing is close enough to hit you. Yet."
+      );
+      break;
+    case "run":
+      logSystem("There's nothing to run from.");
+      break;
     case "rest":
       handleRest();
       break;
-
     case "use":
-      // IMPORTANT: use extendedUseSystem outside combat too
-      extendedUseSystem(rawArgStr, false);
+      handleUse(raw.slice(4).trim(), { inCombat: false });
       break;
-
     case "equip":
-      handleEquip(rawArgStr);
+      handleEquip(raw.slice(6).trim());
       break;
-
     case "adjust":
-      handleAdjust(rawArgStr);
+      handleAdjust(raw.slice(6).trim());
       break;
-
     case "ring":
-      handleRing(rawArgStr);
+      handleRing(raw.slice(5).trim(), { inCombat: false });
       break;
-
     case "search":
       handleSearch();
       break;
-
     case "reset":
       handleReset();
       break;
+    default: {
+      // Nice directional shorthand (n/s/e/w/u/d/f/b) without "go"
+      const asDir = normalizeDirection(cmd);
+      const validDirs = new Set([
+        "north",
+        "south",
+        "east",
+        "west",
+        "up",
+        "down",
+        "forward",
+        "back",
+      ]);
+      if (validDirs.has(asDir)) {
+        handleGo(asDir);
+        break;
+      }
 
-    default:
       logSystem("You mumble, unsure what that means. (Type 'help' for commands.)");
       break;
+    }
   }
 
   scheduleSave();
 }
 
-// ============================================================
-// MODULE 7 — BOOT
-// ============================================================
+// =========================
+// Autosave to server
+// =========================
 
-function bootGame() {
-  initUIRefs();
+let saveTimeout = null;
+let lastSaveTime = null;
 
-  gameState.playerId = getOrCreatePlayerId();
+function setSaveIndicator(text) {
+  if (!saveIndicatorEl) return;
+  saveIndicatorEl.textContent = text;
+}
 
-  const loaded = loadSaveIfExists();
-
-  ensureEquipment();
-  updateStatusBar();
-
-  if (!loaded) {
-    logSystem("VENISTASIA — Dawnspire Below");
-    logSystem("Type 'help' for commands.");
-  }
-
-  enterRoom(gameState.location);
-
-  const form = document.getElementById("commandForm");
-  const input = document.getElementById("commandInput");
-
-  if (form && input) {
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const value = input.value;
-      input.value = "";
-      handleCommand(value);
-    });
-    input.focus();
+function formatClock(d) {
+  try {
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return String(d);
   }
 }
 
-bootGame();
+function scheduleSave() {
+  setSaveIndicator("Changes pending...");
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(saveGameToServer, 3000);
+}
 
-// Optional: expose for debugging in console
-window.VENISTASIA = { gameState, handleCommand, enterRoom, goDirection, saveNow };
+async function saveGameToServer() {
+  saveTimeout = null;
+
+  try {
+    const payload = {
+      playerId: gameState.playerId,
+      state: gameState,
+    };
+
+    const res = await fetch("api/save.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    if (data && data.success) {
+      lastSaveTime = new Date();
+      setSaveIndicator(`Saved at ${formatClock(lastSaveTime)}`);
+    } else {
+      setSaveIndicator("Save failed (server error).");
+    }
+  } catch (err) {
+    console.error("Save error:", err);
+    setSaveIndicator("Save failed (network error).");
+  }
+}
+
+function sanitizeLoadedState() {
+  if (!gameState.player) gameState.player = {};
+  if (!gameState.flags) gameState.flags = {};
+  if (!Array.isArray(gameState.inventory)) gameState.inventory = [];
+  if (!gameState.combat) {
+    gameState.combat = { inCombat: false, enemy: null, previousLocation: null, intent: null };
+  }
+  if (typeof gameState.location !== "string" || !locations[gameState.location]) {
+    gameState.location = "village_square";
+  }
+  ensureEquipment();
+}
+
+async function loadGameFromServer() {
+  logSystem("Loading your adventure...");
+  try {
+    const currentId = gameState.playerId;
+
+    const res = await fetch("api/load.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerId: currentId }),
+    });
+
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+
+    if (data && data.state) {
+      Object.assign(gameState, data.state);
+
+      // Keep localStorage playerId authoritative
+      gameState.playerId = currentId;
+
+      sanitizeLoadedState();
+
+      logSystem("Welcome back. Your adventure has been restored.");
+      if (gameState.combat && gameState.combat.inCombat && gameState.combat.enemy) {
+        logSystem("You come back to your senses in the middle of a fight!");
+      }
+      describeLocation();
+    } else {
+      showIntro();
+    }
+  } catch (err) {
+    console.error("Load error:", err);
+    logSystem("Could not load save; starting a new game.");
+    showIntro();
+  }
+
+  updateStatusBar();
+  setSaveIndicator("Loaded / ready.");
+}
+
+// =========================
+// Init: run AFTER DOM is ready
+// =========================
+
+window.addEventListener("DOMContentLoaded", () => {
+  outputEl = document.getElementById("output");
+  formEl = document.getElementById("command-form");
+  inputEl = document.getElementById("command-input");
+  saveIndicatorEl = document.getElementById("save-indicator");
+  statusNameEl = document.getElementById("status-name");
+  statusLevelEl = document.getElementById("status-level");
+  statusHpEl = document.getElementById("status-hp");
+  statusXpEl = document.getElementById("status-xp");
+
+  if (!outputEl || !formEl || !inputEl) {
+    console.error("Game UI elements not found in DOM.");
+    return;
+  }
+
+  gameState.playerId = getOrCreatePlayerId();
+  ensureEquipment();
+  updateStatusBar();
+
+  formEl.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const value = inputEl.value;
+    inputEl.value = "";
+    handleCommand(value);
+  });
+
+  loadGameFromServer();
+});
