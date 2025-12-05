@@ -476,15 +476,35 @@ const locations = {
     ].join(" "),
   },
 
-  // Room 18 – Upper Cistern Walk (stub for Zone D)
-  upper_cistern_walk: {
-    name: "Dawnspire – Upper Cistern Walk",
-    description: [
-      "A narrow ledge clings to the side of a massive cistern wall, slick stone dropping away into dark water below.",
-      "The air is cold and wet; the sound of slow, heavy dripping echoes from unseen depths.",
-      "This stretch of the Dawnspire (Zone D) feels half-formed, as if the world is still deciding what else to put here.",
-    ].join(" "),
-  },
+  // Room 18 – Upper Cistern Walk (Zone D starts)
+upper_cistern_walk: {
+  name: "Dawnspire – Upper Cistern Walk",
+  description: [
+    "A narrow walkway runs above a dark reservoir, stone slick with constant drip.",
+    "The water below is a black, patient mirror. Each drop hits like a quiet countdown.",
+    "A cracked ledge branches away where the masonry has half-surrendered.",
+  ].join(" "),
+},
+
+// Room 19 – Cistern Platform
+cistern_platform: {
+  name: "Dawnspire – Cistern Platform",
+  description: [
+    "A lower stone platform clings to the cistern’s inner wall, closer to the black water.",
+    "The air is colder here, damp enough to feel like fingers against your skin.",
+    "Above, the upper walk is a thin line of stone and dripping darkness.",
+  ].join(" "),
+},
+
+// Room 20 – Sludge Channel
+sludge_channel: {
+  name: "Dawnspire – Sludge Channel",
+  description: [
+    "A cramped side channel where the cistern’s runoff collects into slow-moving sludge.",
+    "The stone is stained dark and greasy, and the smell is rot mixed with minerals.",
+    "The path narrows until it feels like the Dawnspire is trying to close you in.",
+  ].join(" "),
+},
 };
 
 // Exits helper text for each location
@@ -530,7 +550,11 @@ const exitsByLocation = {
   hidden_shrine_flame:
     "Obvious exits: west/back – crawl back through the tight passage to the Armory of Dust.",
   upper_cistern_walk:
-    "Obvious exits: west/up – back along the narrow stair to the watch balcony.",
+  "Obvious exits: up/west – to the watch balcony; down – stairs to a lower cistern platform; east/forward – a cracked ledge into a sludge channel.",
+  cistern_platform:
+  "Obvious exits: up – back to the upper cistern walk.",
+  sludge_channel:
+  "Obvious exits: west/back – back to the upper cistern walk.",
 };
 
 function printExitsForLocation(id) {
@@ -598,6 +622,11 @@ function handleTrapDeath(trapKey) {
         "The rush of air rips any last sound out of your throat. The impact, when it comes, is just distance closing.",
       ];
       break;
+      case "cistern_slip":
+  lines = [
+    "Your foot skates on wet stone. You hit the edge wrong, go weightless, and then the world becomes impact and water-dark cold.",
+  ];
+  break;
     default:
       lines = [
         "Something in the dark moves, and your story ends faster than you can understand.",
@@ -712,6 +741,65 @@ function runBarracksSearchTrapAndLoot() {
   );
 
   maybeGrantBarracksLoot();
+}
+// helper: Room 18 slippery stone trap (can dump you to Room 19)
+function runUpperCisternSlipTrap() {
+  if (gameState.flags.upperCisternSlipChecked) return true;
+
+  gameState.flags.upperCisternSlipChecked = true;
+
+  logSystem(
+    "Water beads on the walkway like oil. The stone here is slick enough to punish confidence."
+  );
+
+  const slip = roll(1, 100) <= 35; // ~1/3 chance
+  if (!slip) {
+    logSystem("You test each step and keep your footing—for now.");
+    return true;
+  }
+
+  logSystem(
+    "Your boot slides. The world lurches sideways and the railing is suddenly too far away."
+  );
+
+  const dmg = roll(2, 5);
+  const p = gameState.player;
+  p.hp -= dmg;
+
+  if (p.hp <= 0) {
+    p.hp = 0;
+    updateStatusBar();
+    handleTrapDeath("cistern_slip");
+    return false;
+  }
+
+  updateStatusBar();
+  logSystem(`You slam down hard. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`);
+
+  // Dump player to Room 19
+  gameState.location = "cistern_platform";
+  logSystem("You tumble down onto a lower platform near the waterline.");
+  describeLocation();
+  return false;
+}
+
+// helper: occasional leech encounter on Room 18
+function maybeStartUpperCisternLeech() {
+  if (gameState.combat.inCombat) return;
+
+  // one-time spawn until you decide you want repeats
+  if (gameState.flags.upperCisternLeechSpawned) return;
+
+  const spawn = roll(1, 100) <= 40;
+  if (!spawn) return;
+
+  gameState.flags.upperCisternLeechSpawned = true;
+
+  logSystem(
+    "A wet sound peels off the ceiling. Something lets go."
+  );
+  gameState.combat.previousLocation = "watch_balcony";
+  startCombat("swollen_cave_leech");
 }
 
 function maybeGrantBarracksLoot() {
@@ -870,6 +958,13 @@ function maybeGrantFlickerNodeLoot() {
       type: "coin",
     });
   }
+
+  logSystem(
+    "Shifting a broken slab near the lantern housing, you expose a few tarnished coins stamped with an unfamiliar crest."
+  );
+  logSystem(`You gain: Dawnspire Coins (${count}).`);
+}
+
 // helper: Provision Cellar loot – 2x Travel Ration
 function maybeGrantProvisionCellarLoot() {
   if (gameState.flags.gotProvisionCellarLoot) return;
@@ -885,12 +980,6 @@ function maybeGrantProvisionCellarLoot() {
     "You dig through the moldy sacks until your fingers find waxed packets—sealed, intact, and bizarrely clean compared to everything else."
   );
   logSystem("You gain: Travel Ration (2).");
-}
-
-  logSystem(
-    "Shifting a broken slab near the lantern housing, you expose a few tarnished coins stamped with an unfamiliar crest."
-  );
-  logSystem(`You gain: Dawnspire Coins (${count}).`);
 }
 
 // helper: Guard Post loot – Old Guard Spear
@@ -1766,6 +1855,18 @@ function describeLocation() {
         "Light threads into the seated shard and splits along its scars: one thin beam knifes back toward the mirrors, the other dives through the stone toward the heavy door to the south."
       );
     }
+    if (gameState.location === "cistern_platform") {
+  logSystem(
+    "The water is close enough to hear it breathe—slow, heavy, and indifferent."
+  );
+}
+
+if (gameState.location === "sludge_channel") {
+  logSystem(
+    "Every surface here looks like it’s been touched too many times by something that should have stayed buried."
+  );
+}
+
   }
 
   // Door of Failed Light – status
@@ -1896,12 +1997,17 @@ function describeLocation() {
       "The barrels here have burst into slop and blackened wood. Whatever was worth eating was either stolen long ago—or sealed in wax and forgotten."
     );
   }
-  // Upper Cistern Walk – small note
-  if (gameState.location === "upper_cistern_walk") {
-    logSystem(
-      "The ledge here narrows to the width of your boots. You get the sense the Dawnspire's cisterns go much deeper than this, when the rest of it remembers how to be real."
-    );
-  }
+// Upper Cistern Walk – trap + possible leech + note
+if (gameState.location === "upper_cistern_walk" && !gameState.combat.inCombat) {
+  // Encounter first (so we don't print exits during combat start)
+  maybeStartUpperCisternLeech();
+  if (gameState.combat.inCombat) return;
+
+  logSystem(
+    "The walkway here is narrow and constantly wet. A bad step could mean a hard fall to the lower platform."
+  );
+}
+
 
   printExitsForLocation(gameState.location);
 
@@ -1984,6 +2090,17 @@ const enemyTemplates = {
     description:
       "Half-rotted plate armor hangs from a frame of desiccated sinew and bone. In one hand it clutches a cracked crystal lantern that burns with a cold, steady glow; the other drags a notched halberd that scrapes sparks from the stone. Where its eyes should be, two pinpricks of lantern-light burn in patient, hateful circles.",
   },
+  swollen_cave_leech: {
+  id: "swollen_cave_leech",
+  name: "Swollen Cave-Leech",
+  type: "beast",
+  maxHp: 10,
+  atkMin: 2,
+  atkMax: 4,
+  xpReward: 18,
+  description:
+    "A bloated, pallid leech drops from above with a wet slap, its ringed mouth opening and closing as it tastes the air for warmth.",
+},
 };
 
 const enemyIntents = {
@@ -2857,14 +2974,19 @@ function handleGo(direction) {
       return;
     }
 
-    if (direction === "east" || direction === "down" || direction === "forward") {
-      gameState.location = "upper_cistern_walk";
-      logSystem(
-        "You take the narrow stair that spirals down along the chasm wall, each step damp and slick, until it spills you onto a ledge above the cistern."
-      );
-      describeLocation();
-      return;
-    }
+   if (direction === "east" || direction === "down" || direction === "forward") {
+  gameState.location = "upper_cistern_walk";
+  logSystem(
+    "You take the narrow stair that spirals down along the chasm wall, each step damp and slick, until it spills you onto a walkway above the cistern."
+  );
+
+  // Trap can dump you to Room 19
+  const stayed = runUpperCisternSlipTrap();
+  if (!stayed) return;
+
+  describeLocation();
+  return;
+}
   }
 
   // Room 16 – Hidden Shrine to the Flame
@@ -2879,28 +3001,59 @@ function handleGo(direction) {
     }
   }
 
-  // Room 18 – Upper Cistern Walk
-  if (loc === "upper_cistern_walk") {
-    if (direction === "west" || direction === "up" || direction === "back") {
-      gameState.location = "watch_balcony";
-      logSystem(
-        "You edge back along the wet stone ledge and climb the narrow stair, returning to the balcony above the hollow."
-      );
-      describeLocation();
-      return;
-    }
+// Room 18 – Upper Cistern Walk
+if (loc === "upper_cistern_walk") {
+  if (direction === "west" || direction === "up" || direction === "back") {
+    gameState.location = "watch_balcony";
+    logSystem(
+      "You edge back along the wet stone walkway and climb the narrow stair, returning to the balcony above the hollow."
+    );
+    describeLocation();
+    return;
   }
-  // Room 17 – Stale Provision Cellar
-  if (loc === "stale_provision_cellar") {
-    if (direction === "south" || direction === "back") {
-      gameState.location = "lantern_muster_hall";
-      logSystem(
-        "You retreat from the damp cellar, letting the stink of mold fade as the mustering hall opens up again."
-      );
-      describeLocation();
-      return;
-    }
+
+  if (direction === "down") {
+    gameState.location = "cistern_platform";
+    logSystem(
+      "You take the dripping stairs down, stone slick underfoot, until you reach a lower platform near the waterline."
+    );
+    describeLocation();
+    return;
   }
+
+  if (direction === "east" || direction === "forward") {
+    gameState.location = "sludge_channel";
+    logSystem(
+      "You follow a cracked ledge along the cistern wall, squeezing into a narrow channel where runoff thickens into sludge."
+    );
+    describeLocation();
+    return;
+  }
+}
+// Room 19 – Cistern Platform
+if (loc === "cistern_platform") {
+  if (direction === "up" || direction === "back") {
+    gameState.location = "upper_cistern_walk";
+    logSystem(
+      "You climb back up from the waterline, returning to the narrow upper walkway above the reservoir."
+    );
+    describeLocation();
+    return;
+  }
+}
+
+// Room 20 – Sludge Channel
+if (loc === "sludge_channel") {
+  if (direction === "west" || direction === "back") {
+    gameState.location = "upper_cistern_walk";
+    logSystem(
+      "You retreat from the sludge channel, easing back onto the upper cistern walkway where the drip never stops."
+    );
+    describeLocation();
+    return;
+  }
+}
+
 
   logSystem("You can't go that way.");
 }
