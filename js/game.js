@@ -114,7 +114,7 @@ function getEquippedWeapon() {
 }
 
 // =========================
-// Combat flavor text (trimmed sets)
+– Combat flavor text (trimmed sets)
 // =========================
 
 const combatFlavor = {
@@ -391,6 +391,16 @@ const locations = {
     ].join(" "),
   },
 
+  // Room 15 – Watch Balcony
+  watch_balcony: {
+    name: "Dawnspire – Watch Balcony",
+    description: [
+      "A narrow stone balcony juts out over a vast dark hollow, its parapet cracked and bowed outward over nothing.",
+      "Far below, you can just make out the glimmer of black water and the ghost-lines of walkways skirting a buried cistern.",
+      "A narrow stair curls down along the eastern wall, clinging to the stone like something afraid to let go.",
+    ].join(" "),
+  },
+
   // Room 16 – Hidden Shrine to the Flame
   hidden_shrine_flame: {
     name: "Dawnspire – Hidden Shrine to the Flame",
@@ -399,6 +409,16 @@ const locations = {
       "The walls are blackened stone, carved with overlapping circles of lanterns and stylized flames, all scorched until the details blur.",
       "At the far end, a small altar of cracked marble squats beneath a soot-stained sigil of a lantern burning upside-down.",
       "Someone knelt here often enough to wear two shallow depressions into the stone floor.",
+    ].join(" "),
+  },
+
+  // Room 18 – Upper Cistern Walk (stub for Zone D)
+  upper_cistern_walk: {
+    name: "Dawnspire – Upper Cistern Walk",
+    description: [
+      "A narrow ledge clings to the side of a massive cistern wall, slick stone dropping away into dark water below.",
+      "The air is cold and wet; the sound of slow, heavy dripping echoes from unseen depths.",
+      "This stretch of the Dawnspire (Zone D) feels half-formed, as if the world is still deciding what else to put here.",
     ].join(" "),
   },
 };
@@ -436,11 +456,15 @@ const exitsByLocation = {
   broken_barracks:
     "Obvious exits: west/back – to the fallen guard post; north – into a broader hall where lantern-bearers once gathered.",
   lantern_muster_hall:
-    "Obvious exits: south/back – to the broken barracks; east – into an old armory; north – toward a watch balcony over the halls.",
+    "Obvious exits: south/back – to the broken barracks; east – into an old armory; north – up to a watch balcony over the chasm.",
   armory_of_dust:
     "Obvious exits: west/back – to the Lantern Muster Hall; east – a low, shadowed gap in the racks (if you’ve found it).",
+  watch_balcony:
+    "Obvious exits: south – back down into the Lantern Muster Hall; east/down – along a narrow stair to an upper cistern walk.",
   hidden_shrine_flame:
     "Obvious exits: west/back – crawl back through the tight passage to the Armory of Dust.",
+  upper_cistern_walk:
+    "Obvious exits: west/up – back along the narrow stair to the watch balcony.",
 };
 
 function printExitsForLocation(id) {
@@ -502,8 +526,16 @@ function handleTrapDeath(trapKey) {
         "You grab the perfect blade and it explodes into dust in your hands. Rust floods your eyes and mouth as your lungs seize and everything goes hard and black.",
       ];
       break;
+    case "watch_fall":
+      lines = [
+        "Stone gives way under your grip. You pitch forward with the railing, falling into the hollow below.",
+        "The rush of air rips any last sound out of your throat. The impact, when it comes, is just distance closing.",
+      ];
+      break;
     default:
-      lines = ["Something in the dark moves, and your story ends faster than you can understand."];
+      lines = [
+        "Something in the dark moves, and your story ends faster than you can understand.",
+      ];
       break;
   }
 
@@ -640,6 +672,41 @@ function maybeGrantBarracksLoot() {
     "You recover a few Torn Journal Pages, a shriveled ration wrapped in oilcloth, and a small stoppered vial of pale liquid."
   );
   logSystem("You gain: Torn Journal Pages, Travel Ration, Low-grade Healing Draught.");
+}
+
+// helper: Watch Balcony trap
+function runWatchBalconyTrap() {
+  if (gameState.flags.watchBalconyTrapDone) {
+    logSystem(
+      "You keep a healthier distance from the cracked parapet this time; the stone looks ready to betray anyone who trusts it twice."
+    );
+    return;
+  }
+
+  gameState.flags.watchBalconyTrapDone = true;
+
+  logSystem(
+    "You lean out over the parapet to get a better look at the cistern below. The cracked stone shifts under your hands with a sharp, grinding pop."
+  );
+  logSystem(
+    "For a heartbeat you hang in empty air with the railing, then slam back into the balcony as a chunk breaks away and tumbles into the dark."
+  );
+
+  const dmg = roll(2, 5);
+  const p = gameState.player;
+  p.hp -= dmg;
+
+  if (p.hp <= 0) {
+    p.hp = 0;
+    updateStatusBar();
+    handleTrapDeath("watch_fall");
+    return;
+  }
+
+  updateStatusBar();
+  logSystem(
+    `Pain blooms along your ribs where the stone caught you. Somewhere far below, the broken railing hits water with a distant splash. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
+  );
 }
 
 // helper: vestibule loot (after fight)
@@ -1407,6 +1474,11 @@ function handleSearch() {
     return;
   }
 
+  if (loc === "watch_balcony") {
+    runWatchBalconyTrap();
+    return;
+  }
+
   logSystem("You take a moment to search, but nothing new turns up.");
 }
 
@@ -1603,6 +1675,29 @@ function describeLocation() {
         "Most of the racks lean inward, closing the room in around you. Any secrets here are still buried under rust and splinters."
       );
     }
+  }
+
+  // Watch Balcony lore
+  if (gameState.location === "watch_balcony") {
+    if (!gameState.flags.watchBalconyLoreShown) {
+      gameState.flags.watchBalconyLoreShown = true;
+      logSystem(
+        "On the parapet, half-obscured by hairline cracks, someone carved a line in cramped, deliberate strokes:"
+      );
+      logSystem(
+        "“THEY WILL CLIMB AFTER US. WE MUST BREAK THE WAY BACK.”"
+      );
+    }
+    logSystem(
+      "The stone beneath your boots feels tired and untrustworthy; leaning too far out over the hollow would be a bad way to test your luck."
+    );
+  }
+
+  // Upper Cistern Walk – small note
+  if (gameState.location === "upper_cistern_walk") {
+    logSystem(
+      "The ledge here narrows to the width of your boots. You get the sense the Dawnspire's cisterns go much deeper than this, when the rest of it remembers how to be real."
+    );
   }
 
   printExitsForLocation(gameState.location);
@@ -2501,9 +2596,11 @@ function handleGo(direction) {
     }
 
     if (direction === "north") {
+      gameState.location = "watch_balcony";
       logSystem(
-        "A stair climbs toward a watch balcony overlooking these halls, but the steps ahead blur into unfinished stone and half-formed edges. That part of the Dawnspire isn’t ready yet."
+        "You climb a narrow stair that hugs the wall, emerging onto a stone balcony that hangs over a gulf of darkness."
       );
+      describeLocation();
       return;
     }
   }
@@ -2536,12 +2633,53 @@ function handleGo(direction) {
     }
   }
 
+  // Room 15 – Watch Balcony
+  if (loc === "watch_balcony") {
+    if (direction === "south" || direction === "back") {
+      gameState.location = "lantern_muster_hall";
+      logSystem(
+        "You retreat from the cracked parapet and take the stair back down into the muster hall."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (
+      direction === "east" ||
+      direction === "down" ||
+      direction === "forward"
+    ) {
+      gameState.location = "upper_cistern_walk";
+      logSystem(
+        "You take the narrow stair that spirals down along the chasm wall, each step damp and slick, until it spills you onto a ledge above the cistern."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
   // Room 16 – Hidden Shrine to the Flame
   if (loc === "hidden_shrine_flame") {
     if (direction === "west" || direction === "back") {
       gameState.location = "armory_of_dust";
       logSystem(
         "You duck back into the tight crawlspace, dragging yourself through grit and old ash until the broader shape of the armory opens around you again."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 18 – Upper Cistern Walk
+  if (loc === "upper_cistern_walk") {
+    if (
+      direction === "west" ||
+      direction === "up" ||
+      direction === "back"
+    ) {
+      gameState.location = "watch_balcony";
+      logSystem(
+        "You edge back along the wet stone ledge and climb the narrow stair, returning to the balcony above the hollow."
       );
       describeLocation();
       return;
