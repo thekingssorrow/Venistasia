@@ -36,6 +36,9 @@ const gameState = {
     // outerHallFirstCheck: false,
     // gotFlickerNodeLoot: false,
     // flickerShardAligned: false,
+    // mirrorShardAligned: false,      // future: shard in room 9
+    // deepNodeShardAligned: false,    // future: shard in room 10
+    // doorOfFailedLightOpened: false, // future: when all three beams are online
   },
   combat: {
     inCombat: false,
@@ -402,6 +405,16 @@ const locations = {
     ].join(" "),
   },
 
+  // Room 8 – Door of Failed Light
+  door_failed_light: {
+    name: "Dawnspire – Door of Failed Light",
+    description: [
+      "The hall terminates in a heavy stone door that fills the passage from floor to ceiling. A carved sunburst sprawls across its surface, its rays fractured and worn smooth by time and the weight of collapsed stone.",
+      "Set above the door are three crystal sockets, dull and lifeless, their facets cloudy with dust. Faint lines cut into the stone lead from each cup back along the walls, as if meant to carry light itself.",
+      "Chiseled beneath the dead sockets, the inscription is still sharp: “Lanterns failed. Stones fell. Light must bend to pass.”"
+    ].join(" "),
+  },
+
   // Room 9 – Mirror Gallery (placeholder)
   mirror_gallery: {
     name: "Dawnspire – Mirror Gallery",
@@ -431,9 +444,11 @@ const exitsByLocation = {
   gnawed_storeroom:
     "Obvious exits: west/back – through the low arch into the rat-gnawed vestibule.",
   outer_hall_lanterns:
-    "Obvious exits: south – back to the rat-gnawed vestibule; east – toward a flickering node of old power; north – toward a sealed Door of Failed Light.",
+    "Obvious exits: south – back to the rat-gnawed vestibule; east – toward a flickering node of old power; north – to a sealed Door of Failed Light.",
   flicker_node:
     "Obvious exits: west/back – to the Outer Hall of Lanterns; north – into a gallery of cracked mirrors.",
+  door_failed_light:
+    "Obvious exits: south/back – to the Outer Hall of Lanterns; north – deeper into the Dawnspire, if the door ever opens.",
   mirror_gallery:
     "Obvious exits: south/back – to the flicker node junction.",
 };
@@ -758,7 +773,7 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
     return;
   }
 
-  // Lantern Shard in Flicker Node – Light must travel.
+  // Lantern Shard in Flicker Node – "Light must travel."
   if (
     (arg.includes("shard") || arg.includes("crystal")) &&
     gameState.location === "flicker_node"
@@ -850,6 +865,32 @@ function describeLocation() {
     } else {
       logSystem(
         "Without any source to feed them, the mirrors show nothing but dust and fractured reflections. The gallery feels like a question that hasn't been asked properly yet."
+      );
+    }
+  }
+
+  // special: Door of Failed Light – comment on beams
+  if (gameState.location === "door_failed_light") {
+    const beam7 = !!gameState.flags.flickerShardAligned;
+    const beam9 = !!gameState.flags.mirrorShardAligned;
+    const beam10 = !!gameState.flags.deepNodeShardAligned;
+    const lit = (beam7 ? 1 : 0) + (beam9 ? 1 : 0) + (beam10 ? 1 : 0);
+
+    if (lit === 0) {
+      logSystem(
+        "All three crystal sockets sit dull and blind. Whatever mechanism once listened for light here is deaf to you."
+      );
+    } else if (lit === 1) {
+      logSystem(
+        "One of the sockets holds the faintest glow, like embers buried in ash. The other two remain dark and cold."
+      );
+    } else if (lit === 2) {
+      logSystem(
+        "Two sockets answer with a weak internal glimmer, lines in the stone pulsing faintly before fading. The third stays stubbornly dead."
+      );
+    } else {
+      logSystem(
+        "All three sockets throb with a trapped, pallid radiance, but the stone door still feels like a clenched jaw. Whatever comes next hasn’t quite taken shape yet."
       );
     }
   }
@@ -1519,9 +1560,11 @@ function handleGo(direction) {
     }
 
     if (direction === "north") {
+      gameState.location = "door_failed_light";
       logSystem(
-        "The hall tightens around a heavy, sealed door rimmed with dead lantern cups. Whatever waits beyond is still only a shape in your future."
+        "You move north until the hall simply runs out of space, ending in a heavy stone door carved with a fractured sunburst and three dead crystal sockets."
       );
+      describeLocation();
       return;
     }
   }
@@ -1543,6 +1586,45 @@ function handleGo(direction) {
         "You move north, following where the lantern’s cracked mirror panel points. The stone opens into a chamber lined with tall, damaged mirrors."
       );
       describeLocation();
+      return;
+    }
+  }
+
+  // Room 8 – Door of Failed Light logic
+  if (loc === "door_failed_light") {
+    if (direction === "south" || direction === "back") {
+      gameState.location = "outer_hall_lanterns";
+      logSystem(
+        "You step back from the carved sunburst, letting the oppressive weight of the sealed door fall behind you as the lantern-lined hall opens again."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north" || direction === "forward") {
+      const beam7 = !!gameState.flags.flickerShardAligned;
+      const beam9 = !!gameState.flags.mirrorShardAligned;
+      const beam10 = !!gameState.flags.deepNodeShardAligned;
+      const lit = (beam7 ? 1 : 0) + (beam9 ? 1 : 0) + (beam10 ? 1 : 0);
+
+      if (lit === 0) {
+        logSystem(
+          "You press your weight against the stone. It doesn’t so much as shiver. With all three sockets blind, there’s nothing here for the door to listen to."
+        );
+      } else if (lit === 1) {
+        logSystem(
+          "As you strain against the door, one socket gives off the faintest warmth. Lines in the stone glow a dull ember’s red before fading. Not enough."
+        );
+      } else if (lit === 2) {
+        logSystem(
+          "Two of the sockets flare weakly, light crawling along the carved channels on either side of the door. You hear stone shift somewhere deep within—and then lock again. The third socket stays dead. The door does not move."
+        );
+      } else {
+        // Future: once 7, 9, and 10 are wired, this is where the gate would actually open.
+        logSystem(
+          "All three sockets thrum with buried light. The carved sunburst seems to swell, rays sharpening as lines of radiance bite along the stone. For now, though, whatever lies beyond remains unfinished—another piece of the Dawnspire still waiting to be written."
+        );
+      }
       return;
     }
   }
