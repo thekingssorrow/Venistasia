@@ -467,6 +467,14 @@ const locations = {
       "Nestled in the statue’s other hand burns a crystal flame—pale, steady, and somehow untouched by dust.",
     ].join(" "),
   },
+  // Room 17 – Stale Provision Cellar
+  stale_provision_cellar: {
+    name: "Dawnspire – Stale Provision Cellar",
+    description: [
+      "A cool, damp chamber full of ruined barrels and moldy sacks.",
+      "The air tastes of old grain and wet rot. Waxed packets sit forgotten in the muck—miraculously intact.",
+    ].join(" "),
+  },
 
   // Room 18 – Upper Cistern Walk (stub for Zone D)
   upper_cistern_walk: {
@@ -512,9 +520,11 @@ const exitsByLocation = {
   broken_barracks:
     "Obvious exits: west/back – to the fallen guard post; north – into a broader hall where lantern-bearers once gathered.",
   lantern_muster_hall:
-    "Obvious exits: south/back – to the broken barracks; east – into an old armory; north – up to a watch balcony over the chasm.",
+    "Obvious exits: south/back – to the broken barracks; east – into an old armory; north – up to a watch balcony over the chasm; west – into a cool, damp provision cellar.",
   armory_of_dust:
     "Obvious exits: west/back – to the Lantern Muster Hall; east – a low, shadowed gap in the racks (if you’ve found it).",
+  stale_provision_cellar:
+    "Obvious exits: south – back to the Lantern Muster Hall.",
   watch_balcony:
     "Obvious exits: south – back down into the Lantern Muster Hall; east/down – along a narrow stair to an upper cistern walk.",
   hidden_shrine_flame:
@@ -860,6 +870,22 @@ function maybeGrantFlickerNodeLoot() {
       type: "coin",
     });
   }
+// helper: Provision Cellar loot – 2x Travel Ration
+function maybeGrantProvisionCellarLoot() {
+  if (gameState.flags.gotProvisionCellarLoot) return;
+
+  gameState.flags.gotProvisionCellarLoot = true;
+
+  const ration1 = { id: "ration", name: "Travel Ration", type: "ration" };
+  const ration2 = { id: "ration", name: "Travel Ration", type: "ration" };
+
+  gameState.inventory.push(ration1, ration2);
+
+  logSystem(
+    "You dig through the moldy sacks until your fingers find waxed packets—sealed, intact, and bizarrely clean compared to everything else."
+  );
+  logSystem("You gain: Travel Ration (2).");
+}
 
   logSystem(
     "Shifting a broken slab near the lantern housing, you expose a few tarnished coins stamped with an unfamiliar crest."
@@ -1863,7 +1889,13 @@ function describeLocation() {
       );
     }
   }
-
+  // Stale Provision Cellar – loot + atmosphere
+  if (gameState.location === "stale_provision_cellar" && !gameState.combat.inCombat) {
+    maybeGrantProvisionCellarLoot();
+    logSystem(
+      "The barrels here have burst into slop and blackened wood. Whatever was worth eating was either stolen long ago—or sealed in wax and forgotten."
+    );
+  }
   // Upper Cistern Walk – small note
   if (gameState.location === "upper_cistern_walk") {
     logSystem(
@@ -2768,7 +2800,14 @@ function handleGo(direction) {
       describeLocation();
       return;
     }
-
+    if (direction === "west") {
+      gameState.location = "stale_provision_cellar";
+      logSystem(
+        "You slip through a low side passage. The air turns cool and damp as the stone opens into a ruined provision cellar."
+      );
+      describeLocation();
+      return;
+    }
     if (direction === "north") {
       gameState.location = "watch_balcony";
       logSystem(
@@ -2846,6 +2885,17 @@ function handleGo(direction) {
       gameState.location = "watch_balcony";
       logSystem(
         "You edge back along the wet stone ledge and climb the narrow stair, returning to the balcony above the hollow."
+      );
+      describeLocation();
+      return;
+    }
+  }
+  // Room 17 – Stale Provision Cellar
+  if (loc === "stale_provision_cellar") {
+    if (direction === "south" || direction === "back") {
+      gameState.location = "lantern_muster_hall";
+      logSystem(
+        "You retreat from the damp cellar, letting the stink of mold fade as the mustering hall opens up again."
       );
       describeLocation();
       return;
