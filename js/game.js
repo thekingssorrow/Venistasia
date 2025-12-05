@@ -23,30 +23,7 @@ const gameState = {
   ],
   location: "village_square",
   flags: {
-    // firstDungeonFightDone: false,
-    // stairsCollapsed: false,
-    // gotLanternBadge: false,
-    // collapsedStairTrapDone: false,
-    // firstVestibuleVisit: false,
-    // vestibuleRatsRemaining: 0,
-    // vestibuleCombatDone: false,
-    // gotVestibuleLoot: false,
-    // gnawedStoreroomTrapDone: false,
-    // gotStoreroomBuckler: false,
-    // gotShardNicheShard: false,
-    // outerHallFirstCheck: false,
-    // gotFlickerNodeLoot: false,
-    // flickerShardAligned: false,
-    // mirrorShardAligned: false,      // beam properly bent toward door
-    // deepNodeShardAligned: false,    // shard seated in room 10
-    // doorOfFailedLightOpened: false, // future: when all three beams are online
-    // mirrorBeamToNiche: false,       // 9 -> beam east toward 10
-    // mirrorBeamToDoor: false,        // 9 -> beam toward 8
-    // mirrorGalleryHintShown: false,
-    // guardPostBellRung: false,
-    // guardPostBellAmbushPending: false,
-    // guardPostBellAmbushTriggered: false,
-    // gotGuardSpear: false,
+    // gets filled as you play; left empty on purpose
   },
   combat: {
     inCombat: false,
@@ -138,7 +115,7 @@ function getEquippedWeapon() {
 }
 
 // =========================
-// Combat flavor text
+// Combat flavor text (shortened)
 // =========================
 
 const combatFlavor = {
@@ -147,134 +124,62 @@ const combatFlavor = {
       beast: [
         "You hack into the {name}, fur and flesh tearing under your swing.",
         "Your blade bites into the {name}, opening a ragged line of red.",
-        "You slam your weapon into the {name}'s side, feeling its body buckle.",
-        "You slash across the {name}, scattering dark hair and droplets of blood.",
-        "You drive your weapon into the {name}'s shoulder, wrenching it free with effort.",
-        "Your strike sends the {name} skidding across the stone, claws scraping for purchase.",
-        "You catch the {name} mid-lunge and knock it sideways with a brutal blow.",
-        "You stab low, skewering the {name}'s belly before yanking your weapon back."
       ],
       humanoid: [
-        "You smash your weapon into the {name}'s ribs, feeling something crack under the impact.",
-        "Your swing tears through cloth and flesh as the {name} staggers back, clutching the wound.",
+        "You smash your weapon into the {name}'s ribs.",
         "You drive your blade into the {name}'s side, hot blood soaking your hands.",
-        "Your strike splits skin and muscle; the {name} lets out a sharp, ugly sound.",
-        "You catch the {name} off-balance and slam your weapon into their chest.",
-        "Your blow crashes against bone; the {name} grunts as the impact steals their breath.",
-        "You rake your weapon across the {name}'s arm, leaving a deep, leaking gash.",
-        "You ram your shoulder into the {name} as you cut, sending them stumbling through their own blood."
       ],
       caster: [
-        "You cut through trailing cloth and flesh as the {name} scrambles to finish a spell.",
+        "You cut through trailing cloth and flesh as the {name} fumbles a spell.",
         "Your weapon bites into the {name}'s side, scattering ash-stained fabric and blood.",
-        "You slam into the {name}, snapping their focus along with something in their chest.",
-        "You carve a line across the {name}'s back as they try to retreat, their chant breaking into a scream.",
-        "Your strike hammers into the {name}'s ribs, knocking loose a wheezing breath and a spray of red.",
-        "You hack through dangling charms and flesh; the {name}'s hands shake, blood dripping from their fingers.",
-        "You drive your blade into the {name}'s shoulder; the smell of singed cloth and blood mingles as their spell fizzles out.",
-        "Your attack crashes into the {name}'s gut, folding them in half around the wound."
-      ]
+      ],
     },
     crit: {
       beast: [
-        "Your swing connects with the {name}'s neck; bone shears and the head lolls at a wrong angle. CRITICAL HIT.",
-        "You bring your weapon down and split the {name}'s skull, bone and brain matter cracking open. CRITICAL HIT.",
-        "You carve straight through the {name}'s foreleg; it hits the ground shrieking, stump spraying blood. CRITICAL HIT.",
-        "Your blade drives into the {name}'s eye and out the other side. It jerks once and hangs limp. CRITICAL HIT.",
-        "You slam the {name} into the stone and feel its spine snap under your weight. CRITICAL HIT.",
-        "Your strike opens the {name} from jaw to chest; teeth and tongue spill out with gore. CRITICAL HIT.",
-        "You crush the {name}'s skull under your boot after the blow lands, bone popping wetly. CRITICAL HIT.",
-        "You tear half the {name}'s face away with a brutal swing; it sprays the wall and collapses twitching. CRITICAL HIT."
+        "Your swing connects with the {name}'s neck. CRITICAL HIT.",
+        "You bring your weapon down and split the {name}'s skull. CRITICAL HIT.",
       ],
       humanoid: [
-        "Your weapon caves in the {name}'s skull with a sickening crunch. Blood and bone spray across the stone. CRITICAL HIT.",
-        "You drive your blade up beneath the {name}'s jaw and out through an eye. Their body spasms, then slackens. CRITICAL HIT.",
-        "Your strike severs the {name}'s arm at the shoulder; it spins away, fingers still clawing at nothing. CRITICAL HIT.",
-        "You smash the {name}'s knee sideways, bone tearing through skin as they drop screaming. CRITICAL HIT.",
-        "Your blow rips across the {name}'s throat; a hot, pulsing spray coats your hands as their voice gurgles out. CRITICAL HIT.",
-        "You ram your weapon deep into the {name}'s chest and feel ribs crack and heart give way. CRITICAL HIT.",
-        "Your swing takes half the {name}'s face with it; teeth, blood, and fragments of bone scatter the ground. CRITICAL HIT.",
-        "You twist the blade as you pull it from the {name}'s gut, dragging out loops of slick, steaming entrails. CRITICAL HIT."
+        "Your weapon caves in the {name}'s skull. CRITICAL HIT.",
+        "You drive your blade up beneath the {name}'s jaw. CRITICAL HIT.",
       ],
       caster: [
-        "You drive your weapon straight through the {name}'s chest, snuffing their chant mid-syllable. Blood pours down your hands. CRITICAL HIT.",
-        "Your strike shears off the {name}'s casting hand at the wrist; fingers and rings hit the floor in a bloody spray. CRITICAL HIT.",
-        "You carve into the {name}'s face, blinding one eye and leaving the other wide and blood-fogged. CRITICAL HIT.",
-        "Your swing smashes the {name}'s back; they crumple, blood and grey matter soaking their robes. CRITICAL HIT.",
-        "You bury your blade into the {name}'s spine; their legs go slack as they collapse like a cut puppet. CRITICAL HIT.",
-        "Your attack opens the {name}'s abdomen; organs bulge and spill as they clutch at themselves in disbelief. CRITICAL HIT.",
-        "You slam them against the wall and drive your weapon through their throat, pinning them there as they gurgle out. CRITICAL HIT.",
-        "You slice through both of the {name}'s eyes in a single sweep; they scream, stumbling in circles as blood pours down their cheeks. CRITICAL HIT."
-      ]
-    }
+        "You drive your weapon straight through the {name}'s chest. CRITICAL HIT.",
+        "Your strike shears off the {name}'s casting hand. CRITICAL HIT.",
+      ],
+    },
   },
 
   enemy: {
     normal: {
       beast: [
-        "The {name} sinks its teeth into your arm, ripping skin and muscle loose.",
-        "The {name} rakes claws across your side, leaving burning furrows of torn flesh.",
-        "The {name} slams into your legs, its teeth snapping at exposed skin.",
-        "The {name} bites deep into your calf and shakes, tearing a chunk free.",
-        "The {name} scrabbles up your body, claws shredding cloth and carving bloody lines.",
-        "The {name} latches onto your hand and gnaws until you wrench it free, leaving skin hanging.",
-        "The {name} darts in and snaps at your ribs, leaving a deep, purple-tinged bruise that throbs with every breath.",
-        "The {name} rips a mouthful of flesh from your forearm, hot blood running to your fingertips."
+        "The {name} sinks its teeth into your arm.",
+        "The {name} rakes claws across your side.",
       ],
       humanoid: [
-        "The {name}'s weapon crunches into your ribs, stealing your breath in a flash of pain.",
-        "The {name} drives a blade across your chest, cutting a wide bloody groove.",
-        "The {name} cracks you across the jaw; you taste iron as blood fills your mouth.",
-        "The {name}'s strike sinks into your shoulder, leaving the arm numb and wet with blood.",
-        "The {name} slams a boot into your knee, sending agony lancing up your leg.",
-        "The {name} drags steel across your back as you move, carving a long, stinging wound.",
-        "The {name}'s weapon punches into your gut and rips sideways, leaving warmth spilling down your front.",
-        "The {name} hooks your ankle and sends you crashing to the floor, pain jolting through bone."
+        "The {name}'s weapon crunches into your ribs.",
+        "The {name} drives a blade across your chest.",
       ],
       caster: [
-        "A jagged bolt of force slams into your chest, leaving your ribs aching and skin mottled purple.",
-        "The {name}'s spell burns across your arm, blistering flesh and filling the air with the stink of cooked skin.",
-        "Shards of conjured bone tear into your legs, lodging deep and bleeding freely.",
-        "A wave of crushing pressure clamps around your skull; blood leaks from your nose and ears.",
-        "The {name} hurls a lance of warped light that sears a smoking line through your side.",
-        "Your muscles knot and spasm as the {name}'s curse digs into nerves and bone.",
-        "Black flame licks over your hands, devouring flesh without heat, leaving charred, cracked skin.",
-        "The {name}'s whispered word sends a spike of agony through your spine that leaves you gasping."
-      ]
+        "A jagged bolt of force slams into your chest.",
+        "The {name}'s spell burns across your arm.",
+      ],
     },
     crit: {
       beast: [
-        "The {name} latches onto your throat; teeth punch through flesh before you rip it free in a spray of blood. CRITICAL WOUND.",
-        "The {name} tears a mouthful from your face, hot blood pouring into your eye and down your neck. CRITICAL WOUND.",
-        "The {name} clamps down on your wrist and shakes until bone cracks and something inside tears. CRITICAL WOUND.",
-        "The {name} hits your knee from the side; ligaments snap and you collapse into the dirt. CRITICAL WOUND.",
-        "The {name} rips deep into your side and comes away with a chunk of meat; you can feel warmth pouring out. CRITICAL WOUND.",
-        "The {name} drives its teeth into your hand and mangles fingers into useless, shattered shapes. CRITICAL WOUND.",
-        "The {name} catches your throat with hooked claws, leaving three parallel, pulsing lines that spill red. CRITICAL WOUND.",
-        "The {name} bites clean through part of your ear; blood runs hot down your neck as sound rings and swims. CRITICAL WOUND."
+        "The {name} latches onto your throat. CRITICAL WOUND.",
+        "The {name} tears a mouthful from your face. CRITICAL WOUND.",
       ],
       humanoid: [
-        "The {name}'s weapon crushes into your skull; light explodes behind your eyes as blood runs into your vision. CRITICAL WOUND.",
-        "The {name} drives steel deep into your chest; your breath comes shallow and wet. CRITICAL WOUND.",
-        "The {name} smashes your knee sideways; bone grinds and you nearly go down under your own weight. CRITICAL WOUND.",
-        "The {name}'s blade opens your throat in a wide, searing line; you clamp a hand over it on instinct. CRITICAL WOUND.",
-        "The {name} drives a weapon into your gut and twists; white-hot pain floods your body. CRITICAL WOUND.",
-        "The {name} smashes the back of your head; you see nothing but smeared shapes and swimming light. CRITICAL WOUND.",
-        "The {name}'s strike mangles your forearm; bone shows whitely through shredded flesh. CRITICAL WOUND.",
-        "The {name} hooks your jaw with their weapon, nearly tearing it loose; teeth scatter across the ground. CRITICAL WOUND."
+        "The {name}'s weapon crushes into your skull. CRITICAL WOUND.",
+        "The {name} drives steel deep into your chest. CRITICAL WOUND.",
       ],
       caster: [
-        "The {name}'s spell erupts inside your chest; you feel something tear and burn at the same time. CRITICAL WOUND.",
-        "A lance of warped light punches through your shoulder, leaving a smoking, ragged hole. CRITICAL WOUND.",
-        "The {name} crushes your lungs with invisible force; each breath is a desperate, shallow scrape. CRITICAL WOUND.",
-        "Your skin splits in long, bloody lines as the {name}'s curse digs into your nerves and pulls them apart. CRITICAL WOUND.",
-        "The {name}'s hex rots flesh along your side in seconds; skin blackens and sloughs away. CRITICAL WOUND.",
-        "A blast of concussive force snaps your head back; you hear the crunch of something giving way in your neck. CRITICAL WOUND.",
-        "The {name}'s magic blinds one eye; blood and milky fluid leak down your cheek as your vision shrinks. CRITICAL WOUND.",
-        "Fire that burns without heat crawls up your arm, eating flesh to bone before guttering out. CRITICAL WOUND."
-      ]
-    }
-  }
+        "The {name}'s spell erupts inside your chest. CRITICAL WOUND.",
+        "A lance of warped light punches through your shoulder. CRITICAL WOUND.",
+      ],
+    },
+  },
 };
 
 // =========================
@@ -335,24 +240,24 @@ const locations = {
   village_square: {
     name: "Briar's Edge, Village Square",
     description: [
-      "You stand in the cramped heart of Briar's Edge, a frontier village nailed together from weather-beaten timber and old promises. A crooked well sits at the center, its stones slick with moss and the stains of years of use. Smoke drifts from low chimneys, carrying the sour smell of thin stew and overboiled vegetables. Faded posters promising fame and fortune at the 'Dawnspire Below' flap weakly on a message board, their edges curled and greasy from too many hopeful hands.",
-      "Beyond the last sagging rooftops to the north, the Shaded Frontier begins in a hard, dark line of trees. Behind you, the village pretends not to watch you leave."
+      "You stand in the cramped heart of Briar's Edge, a frontier village nailed together from weather-beaten timber and old promises.",
+      "Beyond the last sagging rooftops to the north, the Shaded Frontier begins in a hard, dark line of trees.",
     ].join(" "),
   },
 
   dark_forest_edge: {
     name: "Forest Edge",
     description: [
-      "The road from Briar's Edge dissolves into churned mud and exposed roots as the forest takes over, its trees packed tight like the bars of a cage. The air here is colder, heavy with the stink of wet earth, old leaves, and the faint metallic tang of something that bled and never quite washed away. Branches knit overhead, letting in only thin, pale ribbons of light that barely reach the ground.",
-      "Every sound seems too loud—your boots in the dirt, your breath, the creak of leather. Somewhere deeper in, something moves just out of sight, and the path north twists into shadow, toward the place the villagers now call the Dawnspire Below. To the south, the village waits like a memory you can still turn back to."
+      "The road from Briar's Edge dissolves into churned mud and exposed roots as the forest takes over.",
+      "Somewhere deeper in, the quake-torn clearing and the Dawnspire wait.",
     ].join(" "),
   },
 
   dungeon_entrance: {
     name: "Dawnspire – Broken Ring",
     description: [
-      "The trees fall away into a raw wound in the earth where the ground has split and slumped, exposing a ring of ancient stone half-swallowed by dirt and roots. Weathered pillars lean at sick angles around a central pit where rough steps spiral downward into a throat of cold, unmoving darkness. The air that seeps up from below smells of stale stone, rust, and something older—like the inside of a sealed tomb finally given a mouth.",
-      "Faint scratches and boot-scuffs around the lip of the ring speak of others who came here before you. None of their voices carry back up the stairs."
+      "The trees fall away into a raw wound in the earth where the ground has split and slumped, exposing a ring of ancient stone.",
+      "Rough steps spiral downward into a throat of cold, unmoving darkness.",
     ].join(" "),
   },
 
@@ -360,8 +265,8 @@ const locations = {
   broken_ring_descent: {
     name: "Dawnspire – Broken Ring Descent",
     description: [
-      "The spiral stairs descend from the surface, the world above shrinking to a memory of pale light and wind. The walls here are slick with seepage, veins of moisture running down stone that glistens with a faint, unhealthy sheen. Tufts of strange, faintly glowing lichen cling to the mortar lines, smearing cold light across your boots as you brush past.",
-      "Your footsteps echo in the tight shaft, overlapping in a rhythm that sounds almost like someone else is walking just behind you. The air is colder the deeper you go, pressed flat and stale, as if this place has been holding its breath for a very long time."
+      "The spiral stairs descend from the surface. The walls are slick with seepage and faintly glowing lichen.",
+      "The air is colder the deeper you go, as if this place has been holding its breath for a very long time.",
     ].join(" "),
   },
 
@@ -369,8 +274,8 @@ const locations = {
   cracked_landing: {
     name: "Dawnspire – Cracked Landing",
     description: [
-      "The stairs spill out onto a cramped stone landing, barely wider than your outstretched arms. Chunks of rubble litter the floor, sharp-edged and fresh, as if the stone itself has been flaking away in slow panic.",
-      "Looking back up the spiral, you can still see the suggestion of light far above—a thin, pale smear where the surface must be. Each breath down here tastes of grit and dust, and the occasional shudder of stone overhead drops a rain of powder onto your shoulders."
+      "The stairs spill out onto a cramped stone landing littered with fresh rubble.",
+      "Looking back up, you can still see a pale suggestion of light far above.",
     ].join(" "),
   },
 
@@ -378,8 +283,8 @@ const locations = {
   collapsed_stairwell: {
     name: "Dawnspire – Collapsed Stairwell",
     description: [
-      "The stairwell here buckles and twists around a mound of fallen stone, the once-smooth descent warped by the violence of some old collapse. Dust hangs in the air in slow, lazy spirals, glowing weakly in the lichen-light.",
-      "Above, you can just make out where the stair used to continue—a jagged plug of shattered blocks and packed debris. Below, the stairs continue into a deeper dark, the air colder and somehow hungrier the further down you look."
+      "The stairwell here buckles around a mound of fallen stone.",
+      "Above, a plug of shattered blocks chokes the way up; below, the stairs continue into deeper dark.",
     ].join(" "),
   },
 
@@ -387,8 +292,8 @@ const locations = {
   rat_gnawed_vestibule: {
     name: "Dawnspire – Rat-gnawed Vestibule",
     description: [
-      "The stair spills into a low, wedge-shaped chamber where the stone has been gnawed and worried at the edges, as if a hundred sets of teeth tried to chew their way out of the walls.",
-      "Chewed-open tunnels vein the lower masonry. The remains of an old camp slump against one wall—a rotted bedroll fused to the floor with damp and mold, a snapped spear haft pinned beneath it, and the scattered ghosts of a pack long since torn apart."
+      "The stair spills into a low chamber where stone has been gnawed and worried at the edges.",
+      "Chewed-open tunnels vein the lower masonry. The remains of an old camp slump against one wall.",
     ].join(" "),
   },
 
@@ -396,8 +301,8 @@ const locations = {
   gnawed_storeroom: {
     name: "Dawnspire – Gnawed Storeroom",
     description: [
-      "A low arch of bitten stone opens into what was once a storeroom. Shelves have collapsed into rotten heaps, their timbers chewed through and sagging like broken ribs.",
-      "Sacks lie torn open across the floor, spilling long-mummified grain and a carpet of small bones. Every step sets something fragile cracking under your boots."
+      "A low arch opens into what was once a storeroom. Shelves have collapsed into rotten heaps.",
+      "Torn sacks spill long-mummified grain and a carpet of small bones that crack under every step.",
     ].join(" "),
   },
 
@@ -405,8 +310,8 @@ const locations = {
   outer_hall_lanterns: {
     name: "Dawnspire – Outer Hall of Lanterns",
     description: [
-      "A long hall runs north and east from here, its walls lined with broken sconces and cracked stone lanterns. Faint, dusty halos stain the ceiling where light once burned and bled away.",
-      "Most of the lanterns hang shattered or gutted, but here and there an intact sconce remains: shallow stone cups shaped to cradle something prismatic, now empty and cold."
+      "A long hall runs north and east, lined with broken sconces and cracked stone lanterns.",
+      "A few intact sconces remain: shallow cups shaped to cradle something prismatic, now empty.",
     ].join(" "),
   },
 
@@ -414,8 +319,8 @@ const locations = {
   flicker_node: {
     name: "Dawnspire – Flicker Node",
     description: [
-      "The hall pinches inward around a small junction chamber, its ceiling lower and the air close with dust and the faint smell of old oil.",
-      "On the far wall, a single lantern fixture survives intact: a stone-backed housing with a cracked mirror panel behind it and an empty prismatic socket in front, waiting for something to catch and throw the light onward."
+      "The hall cinches into a small junction chamber, ceiling low and air close with dust.",
+      "A single lantern fixture survives on the far wall, mirror-backed with an empty prismatic socket.",
     ].join(" "),
   },
 
@@ -423,9 +328,9 @@ const locations = {
   door_failed_light: {
     name: "Dawnspire – Door of Failed Light",
     description: [
-      "The hall terminates in a heavy stone door that fills the passage from floor to ceiling. A carved sunburst sprawls across its surface, its rays fractured and worn smooth by time and the weight of collapsed stone.",
-      "Set above the door are three crystal sockets, dull and lifeless, their facets cloudy with dust. Faint lines cut into the stone lead from each cup back along the walls, as if meant to carry light itself.",
-      "Chiseled beneath the dead sockets, the inscription is still sharp: “Lanterns failed. Stones fell. Light must bend to pass.”"
+      "The hall terminates in a heavy stone door carved with a fractured sunburst.",
+      "Above it, three dull crystal sockets wait, lines in the stone leading back along the walls.",
+      "Chiseled below: “Lanterns failed. Stones fell. Light must bend to pass.”",
     ].join(" "),
   },
 
@@ -433,8 +338,8 @@ const locations = {
   mirror_gallery: {
     name: "Dawnspire – Mirror Gallery",
     description: [
-      "The passage opens into a narrow hall ribbed with tall mirror panels. Most are cracked or clouded, some slumped half-free of their frames, spiderwebbed fractures catching the lichen-glow in broken veins.",
-      "A few panels still pivot loosely on corroded brackets. With enough patience—and a little cruelty—you could adjust them to catch and bend any light that wanders in."
+      "A narrow hall ribbed with tall mirror panels, most cracked or clouded.",
+      "Some still pivot loosely on corroded brackets, ready to catch and bend any light.",
     ].join(" "),
   },
 
@@ -442,8 +347,8 @@ const locations = {
   shard_niche: {
     name: "Dawnspire – Shard Niche",
     description: [
-      "The eastward passage tightens into a small, circular chamber where the stone feels strangely deliberate. The walls are smooth, the floor scraped flat by long-ago boots.",
-      "At the center stands a waist-high pedestal. Set into its top is another lantern fixture—mirror-backed, prismatic socket empty—and resting just beside that socket lies a narrow crystal fragment, catching every stray glimmer of light."
+      "The passage tightens into a small circular chamber with walls smoothed by long-ago hands.",
+      "At the center stands a pedestal with a lantern fixture. Beside its empty socket lies a narrow crystal shard.",
     ].join(" "),
   },
 
@@ -451,8 +356,9 @@ const locations = {
   fallen_guard_post: {
     name: "Dawnspire – Fallen Guard Post",
     description: [
-      "The passage opens into a small room that still remembers the shape of vigilance. An overturned table lies wedged against one wall like a failed barricade, its legs splintered and its underside scored with old knife marks.",
-      "Rusted spears are scattered across the floor and propped in corners, their heads flaking orange, hafts gone soft with rot. From a cracked iron bracket near the ceiling hangs a bell, split down one side but still heavy enough to make your teeth ache just looking at it."
+      "A cramped room that still remembers the shape of vigilance.",
+      "An overturned table leans like a failed barricade; rusted spears lie scattered.",
+      "From a cracked bracket near the ceiling hangs a split iron bell, heavy and mute.",
     ].join(" "),
   },
 
@@ -460,8 +366,18 @@ const locations = {
   broken_barracks: {
     name: "Dawnspire – Broken Barracks",
     description: [
-      "Beyond the guard post, the stone opens into a longer chamber where the air smells of dry rot and old sweat. Two rows of bunk frames list at odd angles, their boards snapped or missing entirely.",
-      "Scraps of rotted bedding cling to the corners like molted skins. Footlockers lie smashed and kicked aside, whatever they once guarded long since picked clean or ground into the dust under desperate boots."
+      "The stone opens into a longer chamber that once served as a bunk room for the garrison.",
+      "Two rows of bunk frames lean at sick angles, half of them half-slid into a black fissure that splits the floor.",
+      "Rotted bedding clings to splintered boards like molted skins. Footlockers lie smashed open, contents long since looted or ground into dust.",
+    ].join(" "),
+  },
+
+  // Room 13 – Lantern Muster Hall
+  lantern_muster_hall: {
+    name: "Dawnspire – Lantern Muster Hall",
+    description: [
+      "A broad, low hall lined with empty weapon racks and pegboards where lanterns once hung in neat rows.",
+      "Faded outlines of shields and armor stain the walls. Someone tried to hold this place together long after the rest of the Dawnspire started to fall apart.",
     ].join(" "),
   },
 };
@@ -497,7 +413,9 @@ const exitsByLocation = {
   fallen_guard_post:
     "Obvious exits: south/back – to the shard niche; east – into a longer chamber lined with ruined bunks.",
   broken_barracks:
-    "Obvious exits: west/back – to the fallen guard post and its hanging bell.",
+    "Obvious exits: west/back – to the fallen guard post; north – into a broader hall where lantern-bearers once assembled.",
+  lantern_muster_hall:
+    "Obvious exits: south/back – to the broken barracks.",
 };
 
 function printExitsForLocation(id) {
@@ -507,7 +425,9 @@ function printExitsForLocation(id) {
 
 // helper: stairs collapse message
 function reportStairsCollapsed() {
-  logSystem("Stone and dust fill the stairwell above. Whatever daylight once lived up there is gone.");
+  logSystem(
+    "Stone and dust fill the stairwell above. Whatever daylight once lived up there is gone."
+  );
 }
 
 // helper: landing loot
@@ -523,44 +443,37 @@ function maybeGrantLanternBadge() {
   gameState.inventory.push(badge);
 
   logSystem(
-    "Half-buried in the rubble, your fingers close on something cold and worked. You pry free a small metal badge stamped with a stylized lantern—tarnished, but unmistakably deliberate. A Lantern Knight’s badge, abandoned here and left to watch the dark alone."
+    "Half-buried in the rubble, your fingers close on something cold and worked: a small badge stamped with a stylized lantern."
   );
   logSystem("You take the Lantern Knight’s Badge.");
 }
 
-// ===== Trap death helper (for brutal, sudden trap deaths) =====
+// ===== Trap death helper =====
 function handleTrapDeath(trapKey) {
   let lines;
   switch (trapKey) {
     case "collapsed_stair_rock":
       lines = [
-        "Stone shears free above you with no warning. Something the size of your chest slams into your skull; there’s a crack, a flash, and then nothing at all.",
-        "The stairwell bucks under your feet as a jagged block drops out of the dark. It hits you full in the face; your neck folds sideways and the world cuts to black mid-breath.",
-        "You glance up just in time to see the underside of the falling rock. It meets you like a hammer, driving you bonelessly into the shattered steps.",
-        "A coffin-sized stone punches through the ceiling and crushes your shoulder and throat in one grinding impact. The rest of you never gets the chance to understand."
+        "Stone shears free above. A block the size of your chest slams into you. There is a crack, a flash, and then nothing.",
       ];
       break;
     case "gnawed_rats":
       lines = [
-        "Your boot grinds down into hidden bones. The pile explodes into motion as a hundred tiny bodies erupt up your legs. By the time you remember to scream, your throat is already full of teeth.",
-        "The bone-drift blooms outward in a living tide. Tiny claws and needle teeth find every gap in cloth and flesh at once. You go down under them, swallowed in a single, frantic shriek.",
-        "The floor flexes with something beneath the bones. Then they burst upward in a writhing wave that knocks you flat. You choke on fur and hot copper as they eat all the soft parts first.",
-        "You stagger as the bones shift—and the room erupts. A squealing storm climbs your body, chewing through tendon and throat before your hands can even close around a weapon."
+        "The bone-drift erupts under your feet in a living tide of teeth. You go down screaming into the swarm.",
       ];
       break;
     case "mirror_flash":
       lines = [
-        "You tip a mirror too far. The beam hits your eyes full-on—white fire knifes through your skull, and the rest of the world never quite makes it back.",
-        "For a heartbeat, every panel shares your reflection. Then the light folds and slams straight into your face. Sight goes first, then balance, then everything else.",
-        "The beam ricochets between cracked glass and lands on you like a hammer. Nerves detonate behind your eyes; you hit the floor already halfway out of your body.",
-        "You catch a perfect angle by accident. The hall vanishes in a sheet of white pain that tears through your skull and leaves nothing worth standing back up in it."
+        "Light ricochets between mirrors and hits your eyes full-on. White pain tears through your skull and never quite lets go.",
+      ];
+      break;
+    case "barracks_collapse":
+      lines = [
+        "The bunk gives way under your weight. You fall with it into the fissure, stone and splintered wood slamming you into the dark.",
       ];
       break;
     default:
-      lines = [
-        "Something in the dark moves, and your story ends faster than your mind can catch up.",
-        "There’s no warning—just impact, and then the feeling of the world letting go of you."
-      ];
+      lines = ["Something in the dark moves, and your story ends faster than you can understand."];
       break;
   }
 
@@ -571,16 +484,15 @@ function handleTrapDeath(trapKey) {
 
 // helper: Room 3 loose-stone trap
 function runCollapsedStairTrap() {
-  // Only trigger once
   if (gameState.flags.collapsedStairTrapDone) return true;
 
   gameState.flags.collapsedStairTrapDone = true;
 
   logSystem(
-    "Your boot rolls on a loose stone. The narrow stair lurches under you as a chunk of the ceiling breaks free."
+    "Your boot rolls on a loose stone. The stair lurches, and a chunk of the ceiling breaks free."
   );
 
-  const dmg = roll(1, 3); // small chip damage
+  const dmg = roll(1, 3);
   const p = gameState.player;
 
   if (dmg <= 0) {
@@ -593,9 +505,8 @@ function runCollapsedStairTrap() {
   if (p.hp <= 0) {
     p.hp = 0;
     updateStatusBar();
-    // Custom trap death text instead of generic combat death
     handleTrapDeath("collapsed_stair_rock");
-    return false; // you died; movement should not continue
+    return false;
   }
 
   updateStatusBar();
@@ -610,10 +521,10 @@ function runGnawedStoreroomTrap() {
   gameState.flags.gnawedStoreroomTrapDone = true;
 
   logSystem(
-    "Your step sinks into a drift of bones. The whole pile shivers, then erupts as a churning swarm of half-rotten rats pours over your boots."
+    "Your step sinks into a drift of bones. The whole pile shivers, then erupts as a churning swarm of half-rotten rats."
   );
 
-  const dmg = roll(1, 3); // minor chip damage
+  const dmg = roll(1, 3);
   const p = gameState.player;
 
   p.hp -= dmg;
@@ -630,6 +541,76 @@ function runGnawedStoreroomTrap() {
     `They tear at your ankles and calves before scattering back into the dark. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
   );
   return true;
+}
+
+// helper: Broken Barracks search trap + loot
+function runBarracksSearchTrapAndLoot() {
+  if (gameState.flags.barracksTrapDone) {
+    if (gameState.flags.barracksLootTaken) {
+      logSystem(
+        "You pick over the ruined bunks again, but all that’s left is splinters and dust."
+      );
+      return;
+    }
+    // Trap already fired but somehow loot not marked; just give loot.
+    maybeGrantBarracksLoot();
+    return;
+  }
+
+  gameState.flags.barracksTrapDone = true;
+
+  logSystem(
+    "You lean your weight into one of the more intact bunks. Rotten timbers give with a sharp crack."
+  );
+  logSystem(
+    "The frame lurches sideways and slides into the fissure, dragging you half with it in a roar of splintering wood and falling stone."
+  );
+
+  const dmg = roll(1, 3);
+  const p = gameState.player;
+  p.hp -= dmg;
+
+  if (p.hp <= 0) {
+    p.hp = 0;
+    updateStatusBar();
+    handleTrapDeath("barracks_collapse");
+    return;
+  }
+
+  updateStatusBar();
+  logSystem(
+    `You slam into the edge of the fissure and haul yourself back up, bruised and breathless. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
+  );
+
+  maybeGrantBarracksLoot();
+}
+
+function maybeGrantBarracksLoot() {
+  if (gameState.flags.barracksLootTaken) return;
+  gameState.flags.barracksLootTaken = true;
+
+  const ration = { id: "ration", name: "Travel Ration", type: "ration" };
+  const draught = {
+    id: "low-healing-draught",
+    name: "Low-grade Healing Draught",
+    type: "consumable",
+    heal: 8,
+  };
+  const journal = {
+    id: "torn-journal-pages",
+    name: "Torn Journal Pages",
+    type: "lore",
+  };
+
+  gameState.inventory.push(ration, draught, journal);
+
+  logSystem(
+    "In the space where the bunk tore free, your hand brushes old parchment and something glass still mostly intact."
+  );
+  logSystem(
+    "You recover a few Torn Journal Pages, a shriveled ration wrapped in oilcloth, and a small stoppered vial of pale liquid."
+  );
+  logSystem("You gain: Torn Journal Pages, Travel Ration, Low-grade Healing Draught.");
 }
 
 // helper: vestibule loot (after fight)
@@ -650,7 +631,7 @@ function maybeGrantVestibuleLoot() {
   gameState.inventory.push(ration, bandage);
 
   logSystem(
-    "Picking through the shredded bedroll and the ruins of an old pack, you turn up a half-stale travel ration and a strip of dirty bandage stiff with old blood."
+    "Picking through the shredded bedroll and pack remains, you turn up a stale ration and a strip of dirty bandage stiff with old blood."
   );
   logSystem("You gain: Travel Ration, Dirty Bandage.");
 }
@@ -658,7 +639,7 @@ function maybeGrantVestibuleLoot() {
 // helper: storeroom loot (Rust-Flecked Buckler + Lantern Shard #1)
 function maybeGrantStoreroomBuckler() {
   if (gameState.flags.gotStoreroomBuckler) return;
-  if (!gameState.flags.gnawedStoreroomTrapDone) return; // only after disturbing the bones
+  if (!gameState.flags.gnawedStoreroomTrapDone) return;
 
   gameState.flags.gotStoreroomBuckler = true;
 
@@ -677,21 +658,17 @@ function maybeGrantStoreroomBuckler() {
   gameState.inventory.push(buckler, shard);
 
   logSystem(
-    "Kicking aside scattered bones, you spot the curve of metal under a fallen shelf. You drag free a small buckler, its surface pitted with rust and old scratches."
+    "Kicking aside scattered bones, you spot the curve of metal under a fallen shelf: a small buckler, its surface pitted with rust."
   );
   logSystem(
-    "Nearby, half-wedged between old grain and gnawed bone, a sliver of crystal catches the lichen-light. It’s a narrow shard of something prismatic, edges too clean to be natural."
-  );
-  logSystem(
-    "Whatever carried them last died here, but the iron still feels solid in your grip—and the shard feels conspicuously made to sit in some waiting socket."
+    "Nearby, half-wedged between old grain and gnawed bone, a narrow shard of prismatic crystal catches the light."
   );
   logSystem("You gain: Rust-Flecked Buckler, Lantern Shard (First Fragment).");
 
-  // Auto-equip if you aren't using any shield yet
   ensureEquipment();
   if (!gameState.player.equipment.shieldId) {
     gameState.player.equipment.shieldId = "rust-buckler";
-    logSystem("You strap the buckler onto your forearm. It feels clumsy, but better than empty air.");
+    logSystem("You strap the buckler onto your forearm. Clumsy, but better than nothing.");
   }
 }
 
@@ -710,10 +687,7 @@ function maybeGrantShardNicheShard() {
   gameState.inventory.push(shard2);
 
   logSystem(
-    "Up close, the crystal on the pedestal is unmistakable: another lantern shard, its facets scored as if something once tried to crush it and failed."
-  );
-  logSystem(
-    "You lift it from the cold stone. It thrums faintly in your fingers, eager for the empty socket beside it."
+    "Up close, the crystal on the pedestal is unmistakable: another lantern shard, its facets too clean and deliberate to be natural."
   );
   logSystem("You gain: Lantern Shard (Second Fragment).");
 }
@@ -734,7 +708,7 @@ function maybeGrantFlickerNodeLoot() {
   }
 
   logSystem(
-    "As you shift a broken slab near the lantern housing, something small and hard skitters free. A few tarnished coins lie scattered in the dust, stamped with an empire crest nobody bothers to recognize anymore."
+    "Shifting a broken slab near the lantern housing, you expose a few tarnished coins stamped with an unfamiliar crest."
   );
   logSystem(`You gain: Dawnspire Coins (${count}).`);
 }
@@ -755,19 +729,20 @@ function maybeGrantGuardPostLoot() {
   gameState.inventory.push(spear);
 
   logSystem(
-    "Picking through the tangle of fallen spears, you find one whose haft hasn’t gone completely to mush. Its head is rusted but still wicked, the weight on the end dragging just right when you test the balance."
+    "Picking through the fallen spears, you find one whose haft hasn't gone completely to mush and whose head still holds a wicked edge."
   );
   logSystem(
     "It’s longer than your sword—enough reach to keep teeth and knives a step farther from your throat."
   );
   logSystem("You gain: Old Guard Spear.");
 
-  // Auto-equip if you have no weapon or are still on the rusty sword
   ensureEquipment();
   const eqWeapon = gameState.player.equipment.weaponId;
   if (!eqWeapon || eqWeapon === "rusty-sword") {
     gameState.player.equipment.weaponId = "old-guard-spear";
-    logSystem("You trade the close comfort of your rusty sword for the reach of the spear, settling its butt against the stone with a dull knock.");
+    logSystem(
+      "You trade the close comfort of your rusty sword for the reach of the spear, settling its butt against the stone with a dull knock."
+    );
   }
 }
 
@@ -783,16 +758,12 @@ function triggerBellRing() {
   gameState.flags.guardPostBellRung = true;
 
   logSystem(
-    "You wrap your fingers around the cold, split rim of the bell and give it a pull."
-  );
-  logSystem(
-    "Sound tears out of it in a broken, staggering peal—too loud for a room this small, rattling dust from the ceiling and making your jaw ache."
+    "You wrap your fingers around the cold, split rim of the bell and give it a pull. Sound tears out of it in a broken, staggering peal."
   );
 
   const rollResult = roll(1, 100);
 
   if (rollResult <= 50) {
-    // Immediate rat swarm fight
     logSystem(
       "For a heartbeat, nothing answers. Then the spears on the floor begin to rattle as something small and many-legged pours out from under the overturned table."
     );
@@ -802,9 +773,8 @@ function triggerBellRing() {
     gameState.combat.previousLocation = "fallen_guard_post";
     startCombat("dawnspire_rat");
   } else {
-    // Distant echo + later ambush
     logSystem(
-      "The sound staggers off into the dark, bouncing from wall to wall until it’s hard to tell where it started."
+      "The sound staggers off into the dark, bouncing from wall to wall until it's hard to tell where it started."
     );
     logSystem(
       "Far away in the halls beyond, something answers with the scrape of claws and the faint, excited squeal of things that have just been told where dinner might be."
@@ -823,19 +793,15 @@ function maybeTriggerBellAmbush() {
   }
 
   const loc = gameState.location;
-  // Ambush springs the first time you enter a “wider” hall after ringing:
-  if (
-    loc === "outer_hall_lanterns" ||
-    loc === "mirror_gallery"
-  ) {
+  if (loc === "outer_hall_lanterns" || loc === "mirror_gallery") {
     gameState.flags.guardPostBellAmbushPending = false;
     gameState.flags.guardPostBellAmbushTriggered = true;
 
     logSystem(
-      "Somewhere behind you, the echo of that broken bell peals again—memory or imagination, you can’t tell. What you do hear clearly is the sudden scrabble of claws closing in."
+      "Somewhere behind you, the echo of that broken bell peals again—memory or imagination, you can't tell. What you do hear clearly is the sudden scrabble of claws."
     );
     logSystem(
-      "A starving tunnel-rat darts out from a crack in the stone, eyes wild and teeth already wet, riding the wake of your own noise."
+      "A starving tunnel-rat darts out from a crack in the stone, eyes wild and teeth already wet."
     );
 
     gameState.combat.previousLocation = loc;
@@ -847,26 +813,47 @@ function maybeTriggerBellAmbush() {
 function startVestibuleFight() {
   gameState.flags.firstVestibuleVisit = true;
 
-  // 50% chance of 2 rats, otherwise 1
   const twoRats = roll(1, 100) <= 50;
   gameState.flags.vestibuleRatsRemaining = twoRats ? 2 : 1;
   gameState.combat.previousLocation = "collapsed_stairwell";
 
   if (twoRats) {
     logSystem(
-      "The scratching in the tunnels builds to a frenzy. Two starved shapes spill out of the holes at once, all teeth and motion."
+      "The scratching in the tunnels builds to a frenzy. Two starved shapes spill out of the holes at once."
     );
   } else {
     logSystem(
-      "Scratching builds in the walls until a single starved shape spills out of a crack in the stone, claws scrabbling for purchase."
+      "Scratching builds in the walls until a single starved shape spills out, all teeth and motion."
     );
   }
 
   startCombat("dawnspire_rat");
 }
 
+// helper: start the Broken Barracks fight (1–2 Desiccated Soldiers)
+function startBarracksFight() {
+  if (gameState.flags.barracksFightStarted) return;
+  gameState.flags.barracksFightStarted = true;
+
+  const two = roll(1, 100) <= 50;
+  gameState.flags.barracksSoldiersRemaining = two ? 2 : 1;
+  gameState.combat.previousLocation = "fallen_guard_post";
+
+  if (two) {
+    logSystem(
+      "As you step between the ruined bunks, two shapes pull themselves upright from where they lay collapsed, joints cracking dryly."
+    );
+  } else {
+    logSystem(
+      "One of the slumped figures on a bunk jerks and rises, bones creaking as it remembers how to stand guard."
+    );
+  }
+
+  startCombat("desiccated_soldier");
+}
+
 // =========================
-// Use / bandage / equip / mirrors / shards / bell
+// Use / bandage / draught / equip / mirrors / shards / bell / search
 // =========================
 
 function useBandage(inCombat) {
@@ -888,15 +875,54 @@ function useBandage(inCombat) {
   const healed = p.hp - before;
 
   if (healed <= 0) {
-    logSystem("You wrap the filthy cloth around already-closed wounds. It does more for your courage than your flesh.");
+    logSystem(
+      "You wrap the filthy cloth around already-closed wounds. It does more for your courage than your flesh."
+    );
   } else if (inCombat) {
     logSystem(
-      "You yank the filthy bandage tight around the worst of the bleeding, teeth clenched. The world narrows to breath, pressure, and the wet thump of your heart. For a heartbeat, nothing gets through."
+      "You yank the filthy bandage tight around the worst of the bleeding, teeth clenched."
     );
     logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
   } else {
     logSystem(
       "You take a moment to wrap the dirty bandage around the worst of the damage. It isn't clean, but it holds you together."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  }
+
+  return true;
+}
+
+function useHealingDraught(inCombat) {
+  const idx = findItemIndexByNameFragment("draught");
+  const idxAlt = idx === -1 ? findItemIndexByNameFragment("potion") : idx;
+
+  const useIdx = idxAlt;
+  if (useIdx === -1) {
+    logSystem("You pat yourself down for a vial, but come up empty.");
+    return false;
+  }
+
+  const item = gameState.inventory[useIdx];
+  const healAmount = item.heal || 8;
+  consumeItemByIndex(useIdx);
+
+  const p = gameState.player;
+  const before = p.hp;
+  p.hp = Math.min(p.maxHp, p.hp + healAmount);
+  updateStatusBar();
+  const healed = p.hp - before;
+
+  if (healed <= 0) {
+    logSystem("You swallow the bitter liquid, but it only calms your nerves.");
+  } else if (inCombat) {
+    logSystem(
+      "You wrench the stopper out with your teeth and gulp the draught down as fast as you dare. Heat blooms in your gut and spreads outward."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  } else {
+    logSystem(
+      "You drink the draught slowly, letting its warmth seep into the aches and bruises that never quite left."
     );
     logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
   }
@@ -930,7 +956,7 @@ function handleEquip(rawArgs) {
   } else if (item.type === "shield") {
     gameState.player.equipment.shieldId = item.id;
     logSystem(
-      `You strap the ${item.name} to your forearm. It's not much, but it gives your raised guard somewhere to hide behind.`
+      `You strap the ${item.name} to your forearm. It's not much, but it's better than empty air.`
     );
   } else {
     logSystem("That doesn't sit right in your hands as a weapon or shield.");
@@ -949,7 +975,7 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
   // Bell in Fallen Guard Post
   if (arg.includes("bell") && gameState.location === "fallen_guard_post") {
     if (inCombat) {
-      logSystem("You have exactly zero spare seconds to tug on a bell rope right now.");
+      logSystem("You have no spare seconds to tug on a bell rope right now.");
       return;
     }
     triggerBellRing();
@@ -960,8 +986,33 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
   if (arg.includes("bandage")) {
     const used = useBandage(inCombat);
     if (!used) return;
-    // In combat, using a bandage is your whole turn and prevents that round's damage.
-    // We deliberately do NOT call enemyTurn() here.
+    return;
+  }
+
+  // Healing draught / potion
+  if (arg.includes("draught") || arg.includes("potion")) {
+    const used = useHealingDraught(inCombat);
+    if (!used) return;
+    return;
+  }
+
+  // Journal pages – lore
+  if (arg.includes("journal") || arg.includes("pages")) {
+    const idx = findItemIndexByNameFragment("journal");
+    const idx2 = idx === -1 ? findItemIndexByNameFragment("pages") : idx;
+    if (idx2 === -1) {
+      logSystem("You don't seem to be carrying any pages worth reading.");
+      return;
+    }
+    logSystem(
+      "The Torn Journal Pages crackle faintly as you unfold them. The handwriting is hurried, ink blotched by old sweat and something darker."
+    );
+    logSystem(
+      "\"The Lantern Knights held the upper rings as long as they could. When the light failed, they shattered the stones and fled downward instead of up. Said the dark below was safer than the dark above.\""
+    );
+    logSystem(
+      "Another line, half-smeared: \"If anyone finds this—remember: light isn't the only thing that can hold a gate.\""
+    );
     return;
   }
 
@@ -971,13 +1022,15 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
     gameState.location === "flicker_node"
   ) {
     if (!playerHasLanternShard()) {
-      logSystem("You pat your pockets for crystal, but come up empty. The lantern socket stays dark and expectant.");
+      logSystem(
+        "You pat your pockets for crystal, but come up empty. The lantern socket stays dark and expectant."
+      );
       return;
     }
 
     if (gameState.flags.flickerShardAligned) {
       logSystem(
-        "You brush your fingers over the shard already seated in the lantern’s socket. The beam holds steady, aimed north into the waiting mirrors."
+        "The shard already sits snug in the lantern’s socket, throwing a faint beam north into the waiting mirrors."
       );
       return;
     }
@@ -985,10 +1038,7 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
     gameState.flags.flickerShardAligned = true;
 
     logSystem(
-      "You fit a Lantern Shard into the empty socket. It settles with a faint, teeth-rattling click, as if the stone itself has been waiting for this exact shape."
-    );
-    logSystem(
-      "A thin thread of pale light wakes inside the shard and knifes outward, catching the cracked mirror panel and throwing a ghostly beam north toward the gallery."
+      "You fit a Lantern Shard into the empty socket. A thin thread of pale light wakes inside it and knifes outward toward the north."
     );
     logSystem("The inscription beneath the lantern seems satisfied: “Light must travel.”");
     return;
@@ -1008,7 +1058,7 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
 
     if (gameState.flags.deepNodeShardAligned) {
       logSystem(
-        "The shard already sits snug in the niche’s socket. Light crawls through it in slow pulses, splitting along fractures you can feel more than see."
+        "The shard already sits in the niche’s socket. Light crawls through it in slow pulses, splitting along fractures you can feel more than see."
       );
       return;
     }
@@ -1024,14 +1074,11 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
         "You press the shard into the waiting socket. It bites down with a tiny, hungry click as the faint beam from the gallery finds it."
       );
       logSystem(
-        "Light floods the crystal, fractures catching and splitting it: one thin ray knifes back toward the mirrors, the other dives down the stone toward the carved door far to the south."
+        "Light floods the crystal and splits: one ray knifes back toward the mirrors, another dives down the stone toward the carved door to the south."
       );
     } else {
       logSystem(
-        "You settle a Lantern Shard into the empty socket. It accepts the shape with a soft click and a flicker of buried light."
-      );
-      logSystem(
-        "For now, the shard only hums against your palm. Whatever beam it’s meant to split hasn’t found its way here yet."
+        "You settle a Lantern Shard into the empty socket. It hums faintly, waiting for a beam to arrive."
       );
     }
 
@@ -1046,7 +1093,9 @@ function handleAdjust(rawArgs) {
   const arg = (rawArgs || "").trim().toLowerCase();
 
   if (gameState.location !== "mirror_gallery") {
-    logSystem("You prod and nudge at your surroundings, but nothing here feels built to be adjusted that way.");
+    logSystem(
+      "You prod at your surroundings, but nothing here feels built to be adjusted that way."
+    );
     return;
   }
 
@@ -1054,13 +1103,12 @@ function handleAdjust(rawArgs) {
 
   if (!hasBeam) {
     logSystem(
-      "You shove at a few cracked panels. They creak and shed dust, but without any light to catch, all you do is rearrange your own reflection."
+      "You shove at a few cracked panels. Without any light to catch, all you do is rearrange your own reflection."
     );
     return;
   }
 
-  // Chance to misalign and trigger trap
-  const misalignRoll = roll(1, 100); // ~30% chance of a bad flash
+  const misalignRoll = roll(1, 100);
   if (misalignRoll <= 30) {
     logSystem(
       "You wrench one of the looser mirrors a little too far. For a heartbeat, every panel finds the same cruel angle."
@@ -1079,24 +1127,25 @@ function handleAdjust(rawArgs) {
 
     updateStatusBar();
     logSystem(
-      `White fire detonates behind your eyes. When the world staggers back into place, everything swims at the edges. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
+      `White fire detonates behind your eyes. When the world staggers back into place, everything swims. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
     );
-    // Leave beam state unchanged on a misalignment flash.
     return;
   }
 
   const wantsEast = arg.includes("east");
   const wantsDoor =
-    arg.includes("door") || arg.includes("gate") || arg.includes("sun") || arg.includes("north");
+    arg.includes("door") ||
+    arg.includes("gate") ||
+    arg.includes("sun") ||
+    arg.includes("north");
 
   if (!wantsEast && !wantsDoor) {
-    // Fussy, imprecise adjustment: beam ends up jittering.
     gameState.flags.mirrorBeamToNiche = false;
     gameState.flags.mirrorBeamToDoor = false;
     gameState.flags.mirrorShardAligned = false;
 
     logSystem(
-      "You nudge a few panels into new positions. The beam skitters from crack to crack, never settling long enough to commit to any single path."
+      "You nudge a few panels into new positions. The beam skitters from crack to crack, never settling."
     );
     return;
   }
@@ -1107,7 +1156,7 @@ function handleAdjust(rawArgs) {
     gameState.flags.mirrorShardAligned = false;
 
     logSystem(
-      "You angle a trio of still-loose panels until the beam spears away to the east, threading through a narrow gap toward the niche chamber."
+      "You angle a trio of panels until the beam spears away to the east, threading through a gap toward the niche chamber."
     );
     return;
   }
@@ -1118,10 +1167,7 @@ function handleAdjust(rawArgs) {
     gameState.flags.mirrorShardAligned = true;
 
     logSystem(
-      "Patient, careful adjustments bring the beam around in a broken arc—panel to panel, fracture to fracture—until it slips out of the gallery at a shallow, southward angle."
-    );
-    logSystem(
-      "You can almost feel it knifing down the stone toward the heavy door somewhere beyond, testing the old mechanism that remembers what aligned light is supposed to feel like."
+      "Careful adjustments bring the beam around in a broken arc—panel to panel—until it slips out of the gallery at a shallow, southward angle toward the carved door."
     );
     return;
   }
@@ -1133,7 +1179,7 @@ function handleRing(rawArgs, { inCombat = false } = {}) {
   if (!arg || arg === "bell") {
     if (gameState.location === "fallen_guard_post") {
       if (inCombat) {
-        logSystem("You have no spare breath to waste on drawing more attention with that bell.");
+        logSystem("You have no spare breath to waste on that bell.");
         return;
       }
       triggerBellRing();
@@ -1146,17 +1192,55 @@ function handleRing(rawArgs, { inCombat = false } = {}) {
   if (arg.includes("bell")) {
     if (gameState.location === "fallen_guard_post") {
       if (inCombat) {
-        logSystem("You have no spare breath to waste on drawing more attention with that bell.");
+        logSystem("You have no spare breath to waste on that bell.");
         return;
       }
       triggerBellRing();
       return;
     }
-    logSystem("There’s no bell here to ring—just your own pulse in your ears.");
+    logSystem("There’s no bell here to ring.");
     return;
   }
 
   logSystem("You don't find anything that wants to be rung.");
+}
+
+function handleSearch() {
+  if (gameState.combat.inCombat) {
+    logSystem("You don't have time to rummage around while something is trying to kill you.");
+    return;
+  }
+
+  const loc = gameState.location;
+
+  if (loc === "broken_barracks") {
+    runBarracksSearchTrapAndLoot();
+    return;
+  }
+
+  if (loc === "gnawed_storeroom") {
+    if (!gameState.flags.gnawedStoreroomTrapDone) {
+      logSystem(
+        "The piles of bones and torn sacks look like a bad place to stick your hands until you're ready for whatever wakes up."
+      );
+    } else if (!gameState.flags.gotStoreroomBuckler) {
+      maybeGrantStoreroomBuckler();
+    } else {
+      logSystem(
+        "You sift through the bones again but come up with nothing new—just more brittle remains."
+      );
+    }
+    return;
+  }
+
+  if (loc === "fallen_guard_post") {
+    logSystem(
+      "You pick over the overturned table and fallen spears. Anything worth keeping is either already on you or long gone."
+    );
+    return;
+  }
+
+  logSystem("You take a moment to search, but nothing new turns up.");
 }
 
 function describeLocation() {
@@ -1167,12 +1251,12 @@ function describeLocation() {
   }
   logSystem(`${loc.name}\n${loc.description}`);
 
-  // special: landing loot
+  // landing loot
   if (gameState.location === "cracked_landing") {
     maybeGrantLanternBadge();
   }
 
-  // special: vestibule loot (only when not currently in combat)
+  // vestibule loot
   if (
     gameState.location === "rat_gnawed_vestibule" &&
     !gameState.combat.inCombat
@@ -1180,7 +1264,7 @@ function describeLocation() {
     maybeGrantVestibuleLoot();
   }
 
-  // special: storeroom loot (only when not currently in combat)
+  // storeroom loot
   if (
     gameState.location === "gnawed_storeroom" &&
     !gameState.combat.inCombat
@@ -1188,7 +1272,7 @@ function describeLocation() {
     maybeGrantStoreroomBuckler();
   }
 
-  // special: Flicker Node loot + puzzle flavor
+  // Flicker Node
   if (
     gameState.location === "flicker_node" &&
     !gameState.combat.inCombat
@@ -1197,7 +1281,7 @@ function describeLocation() {
 
     if (gameState.flags.flickerShardAligned) {
       logSystem(
-        "The inset lantern hums faintly, a hairline beam of light carving north through the dust toward the mirror-lined hall beyond."
+        "The inset lantern hums faintly, a hairline beam of light carving north through the dust toward the mirror-lined hall."
       );
     } else if (playerHasLanternShard()) {
       logSystem(
@@ -1210,12 +1294,12 @@ function describeLocation() {
     }
   }
 
-  // special: Mirror Gallery reacts to beam and mirror orientation
+  // Mirror Gallery
   if (gameState.location === "mirror_gallery") {
     if (!gameState.flags.mirrorGalleryHintShown) {
       gameState.flags.mirrorGalleryHintShown = true;
       logSystem(
-        "A few of the taller panels still pivot if you lean your weight into them. With the right angles, you could 'adjust mirrors east' to send a beam into the niche, or 'adjust mirrors door' to bend it back toward the carved gate."
+        "A few of the taller panels still pivot. You could 'adjust mirrors east' to send a beam into the niche, or 'adjust mirrors door' to bend it back toward the gate."
       );
     }
 
@@ -1223,24 +1307,24 @@ function describeLocation() {
 
     if (!hasBeam) {
       logSystem(
-        "Without any source to feed them, the mirrors show nothing but dust and fractured reflections. The room feels like a puzzle waiting for someone else’s mistake."
+        "Without a source of light, the mirrors show nothing but dust and fractured reflections."
       );
     } else if (gameState.flags.mirrorBeamToNiche) {
       logSystem(
-        "A thin thread of light slips in from the south and catches an angled panel, then another, before knifing off to the east. The niche drinks it in and vanishes around a bend."
+        "A thin thread of light slips in from the south and jumps panel to panel before knifing off to the east."
       );
     } else if (gameState.flags.mirrorBeamToDoor) {
       logSystem(
-        "The incoming beam fractures and reforms across several panels, finally sliding out of the gallery at a slant that feels wrong for you—but right for whatever door is listening in the stone beyond."
+        "The incoming beam fractures and reforms across several panels, then slides out of the gallery at a shallow, southward angle."
       );
     } else {
       logSystem(
-        "A restless line of light jitters from crack to crack, never quite settling. Every tiny adjustment seems to threaten either clarity or ruin."
+        "A restless line of light jitters from crack to crack, never quite settling on any single path."
       );
     }
   }
 
-  // special: Shard Niche – shard #2 and beam splitting
+  // Shard Niche
   if (gameState.location === "shard_niche" && !gameState.combat.inCombat) {
     maybeGrantShardNicheShard();
 
@@ -1251,15 +1335,15 @@ function describeLocation() {
 
     if (!hasIncoming && !shardSeated) {
       logSystem(
-        "The lantern fixture sits dark, socket empty, as if waiting for the first taste of light before it decides what to do with it."
+        "The lantern fixture sits dark, socket empty, as if waiting for the first taste of light before it decides what to do."
       );
     } else if (!hasIncoming && shardSeated) {
       logSystem(
-        "The seated shard glows faintly with bottled potential, fractures ready to catch any beam that finally finds its way here."
+        "The seated shard glows faintly, fractures ready to catch any beam that finally finds its way here."
       );
     } else if (hasIncoming && !shardSeated) {
       logSystem(
-        "A faint beam from the gallery sneaks in along the west wall, grazing the empty socket without quite catching. One shard away from doing something interesting."
+        "A faint beam from the gallery sneaks in along the west wall, grazing the empty socket without quite catching."
       );
     } else if (hasIncoming && shardSeated) {
       logSystem(
@@ -1268,7 +1352,7 @@ function describeLocation() {
     }
   }
 
-  // special: Door of Failed Light – comment on beams
+  // Door of Failed Light – status
   if (gameState.location === "door_failed_light") {
     const beam7 = !!gameState.flags.flickerShardAligned;
     const beam9 = !!gameState.flags.mirrorShardAligned;
@@ -1281,7 +1365,7 @@ function describeLocation() {
       );
     } else if (lit === 1) {
       logSystem(
-        "One of the sockets holds the faintest glow, like embers buried in ash. The other two remain dark and cold."
+        "One of the sockets holds the faintest glow, like embers buried in ash. The other two remain dark."
       );
     } else if (lit === 2) {
       logSystem(
@@ -1289,12 +1373,12 @@ function describeLocation() {
       );
     } else {
       logSystem(
-        "All three sockets throb with a trapped, pallid radiance, but the stone door still feels like a clenched jaw. Whatever comes next hasn’t quite taken shape yet."
+        "All three sockets throb with trapped radiance, but the stone door still feels like a clenched jaw. Whatever comes next hasn't been written yet."
       );
     }
   }
 
-  // special: Fallen Guard Post loot
+  // Fallen Guard Post loot
   if (
     gameState.location === "fallen_guard_post" &&
     !gameState.combat.inCombat
@@ -1303,19 +1387,26 @@ function describeLocation() {
 
     if (!gameState.flags.guardPostBellRung) {
       logSystem(
-        "The cracked bell hangs just high enough to make you think about jumping for it. Nothing in this room looks like it would thank you for the noise."
+        "The cracked bell hangs just high enough to make you think about jumping for it. Nothing here looks like it would thank you for the noise."
       );
     } else {
       logSystem(
-        "The bell sways slightly on its damaged bracket, stilling with a faint metallic creak. Dust freckles the floor beneath it like old, settled applause."
+        "The bell sways slightly on its damaged bracket, stilling with a faint metallic creak."
       );
     }
   }
 
-  // exit hint
+  // Broken Barracks – auto-start fight on first entry
+  if (
+    gameState.location === "broken_barracks" &&
+    !gameState.combat.inCombat &&
+    !gameState.flags.barracksFightCleared
+  ) {
+    startBarracksFight();
+  }
+
   printExitsForLocation(gameState.location);
 
-  // possible delayed bell ambush
   if (!gameState.combat.inCombat) {
     maybeTriggerBellAmbush();
   }
@@ -1342,7 +1433,6 @@ function handleInventory() {
     return;
   }
 
-  // Group items by id (fallback to name if no id)
   const grouped = new Map();
 
   for (const item of gameState.inventory) {
@@ -1369,7 +1459,6 @@ function handleInventory() {
 // Combat system
 // =========================
 
-// Enemy templates
 const enemyTemplates = {
   dawnspire_rat: {
     id: "dawnspire_rat",
@@ -1379,16 +1468,23 @@ const enemyTemplates = {
     atkMin: 1,
     atkMax: 3,
     xpReward: 12,
-    description: [
-      "A hairless, skeletal rat drags itself into view, its skin stretched thin and shiny over jutting bones. Patches of scabbed flesh flake away as it moves, revealing raw, weeping meat beneath. Its jaw hangs too wide, teeth long and yellowed, clicking together in a feverish rhythm as thin ropes of saliva drip to the stone.",
-      "Its milky eyes roll in their sockets, unfocused but hungry, and every ragged breath rattles through a chest that looks one good kick away from collapsing. Whatever scraps of meat it has found down here were never enough."
-    ].join(" "),
+    description:
+      "A hairless, skeletal rat drags itself into view, its skin stretched thin over jutting bones and teeth clicking in a hungry rhythm.",
   },
 
-  // Future: add humanoid / caster enemies here with type: "humanoid" / "caster"
+  desiccated_soldier: {
+    id: "desiccated_soldier",
+    name: "Desiccated Soldier",
+    type: "humanoid",
+    maxHp: 12,
+    atkMin: 2,
+    atkMax: 4,
+    xpReward: 20,
+    description:
+      "The corpse wears the ragged remains of a garrison tabard. Skin clings tight to bone, eyes sunken to dark pits that still somehow track your movements.",
+  },
 };
 
-// Enemy intent patterns (what the enemy is about to do next)
 const enemyIntents = {
   beast: [
     {
@@ -1396,24 +1492,46 @@ const enemyIntents = {
       damageMult: 1.0,
       blockMult: 0.6,
       tell:
-        "The {name} drops low, muscles quivering, ready to snap forward in a fast, flesh-tearing lunge."
+        "The {name} drops low, muscles quivering, ready to snap forward in a fast lunge.",
     },
     {
       key: "heavy",
       damageMult: 1.8,
       blockMult: 0.3,
       tell:
-        "The {name} rears back, whole body coiling as it gathers weight for a bone-cracking slam."
+        "The {name} rears back, whole body coiling for a bone-cracking slam.",
     },
     {
       key: "worry",
       damageMult: 1.3,
       blockMult: 0.4,
       tell:
-        "The {name} paces in a tight, jittering circle, teeth chattering, clearly looking for something to latch onto and not let go."
-    }
+        "The {name} paces in a tight circle, teeth chattering, looking for something to latch onto.",
+    },
   ],
-  // later: add 'humanoid' and 'caster'
+  humanoid: [
+    {
+      key: "cut",
+      damageMult: 1.2,
+      blockMult: 0.5,
+      tell:
+        "The {name} raises its weapon in a stiff, deliberate arc, aiming for exposed flesh.",
+    },
+    {
+      key: "thrust",
+      damageMult: 1.5,
+      blockMult: 0.4,
+      tell:
+        "The {name} shifts its weight and draws back for a straight, killing thrust.",
+    },
+    {
+      key: "flail",
+      damageMult: 1.0,
+      blockMult: 0.6,
+      tell:
+        "The {name}'s movements turn jerky and wild, weapon swinging in erratic sweeps.",
+    },
+  ],
 };
 
 function chooseEnemyIntent(enemy) {
@@ -1453,21 +1571,19 @@ function startCombat(enemyId) {
 
   gameState.combat.inCombat = true;
   gameState.combat.enemy = enemy;
-  // previousLocation should be set by the code that *starts* the fight (e.g., movement)
   gameState.combat.intent = null;
 
   const intro = [
-    "The air tightens, the space around you suddenly too small, too close. Something shifts just beyond the edge of your vision—a scrape of claw on stone, a wet breath pulled through broken teeth.",
-    `${enemy.name} drags itself out of the dark, all twitching hunger and bad intent, drawn by the sound of your heartbeat and the sweat on your skin.`,
+    "The air tightens; the space around you suddenly feels too small.",
+    `${enemy.name} drags itself out of the dark, intent fixed entirely on you.`,
     "",
     enemy.description,
     "",
-    "Steel, teeth, or worse—something here is going to break. Type 'attack' to stand your ground, 'block' to brace, or 'run' if your courage falters."
+    "Type 'attack' to stand your ground, 'block' to brace, or 'run' if your courage falters.",
   ].join("\n");
 
   logSystem(intro);
 
-  // First intent
   gameState.combat.intent = chooseEnemyIntent(enemy);
   telegraphEnemyIntent(enemy, gameState.combat.intent);
 }
@@ -1483,14 +1599,10 @@ function handlePlayerDeath() {
   const deathDescriptions = [
     "Your legs buckle. The world tilts. Warm blood pools beneath you as the cold earth drinks the last of your strength.",
     "You collapse, vision swimming. Your breath rattles in your chest before fading into the dark.",
-    "Pain flashes white, then nothing. Your body hits the ground with a hollow thud as everything drains away.",
-    "You fall to your knees, fingers twitching uselessly. The world narrows to a pinprick of cruel light before swallowing you whole."
   ];
 
   logSystem(pickLine(deathDescriptions));
   logSystem("Death claims you brutally in the dark halls of the Dawnspire...");
-
-  // Auto wipe to make testing easier
   handleReset();
 }
 
@@ -1509,7 +1621,6 @@ function gainXp(amount) {
   updateStatusBar();
 }
 
-// Shared enemy turn, respects intent and block
 function enemyTurn(blocking = false) {
   const enemy = gameState.combat.enemy;
   if (!enemy) return;
@@ -1555,20 +1666,18 @@ function enemyTurn(blocking = false) {
   }
 
   const enemyBucket = enemyCrit
-    ? (combatFlavor.enemy.crit[enemyType] || combatFlavor.enemy.crit.beast)
-    : (combatFlavor.enemy.normal[enemyType] || combatFlavor.enemy.normal.beast);
+    ? (combatFlavor.enemy.crit[enemyType] ||
+        combatFlavor.enemy.crit.beast)
+    : (combatFlavor.enemy.normal[enemyType] ||
+        combatFlavor.enemy.normal.beast);
 
   const enemyLine = pickLine(enemyBucket).replace("{name}", enemy.name);
 
   if (enemyDmg > 0) {
     if (blocking) {
-      const blockLines = [
-        "You catch most of the impact on raised steel; the rest shudders down your arms and into your bones.",
-        "You brace behind your weapon and let the blow skid off your guard, pain flaring but not fatal.",
-        "You meet the strike head-on, boots grinding into the stone as you bleed off its strength."
-      ];
-      logSystem(`${enemyLine} (${enemyDmg} damage makes it through your guard.)`);
-      logSystem(pickLine(blockLines));
+      logSystem(
+        `${enemyLine} (${enemyDmg} damage makes it through your guard.)`
+      );
     } else {
       logSystem(`${enemyLine} (${enemyDmg} damage)`);
     }
@@ -1587,12 +1696,13 @@ function enemyTurn(blocking = false) {
       `Blood slicks your skin. HP: ${gameState.player.hp}/${gameState.player.maxHp}.`
     );
   } else if (blocking) {
-    logSystem("You brace and the blow glances off your guard, leaving only numb arms and a ringing in your bones.");
+    logSystem(
+      "You brace and the blow glances off your guard, leaving only numb arms and a ringing in your bones."
+    );
   } else {
     logSystem("The enemy's wild motion fails to find flesh this time.");
   }
 
-  // roll and telegraph the next intent for the upcoming round
   gameState.combat.intent = chooseEnemyIntent(enemy);
   telegraphEnemyIntent(enemy, gameState.combat.intent);
 }
@@ -1609,7 +1719,7 @@ function handleAttack() {
   const weapon = getEquippedWeapon();
   const weaponAtk = weapon ? weapon.atk : 0;
 
-  const critChance = 20; // 20% crit chance
+  const critChance = 20;
   const isCrit = roll(1, 100) <= critChance;
 
   let dmg = roll(1 + weaponAtk, 4 + weaponAtk);
@@ -1620,31 +1730,30 @@ function handleAttack() {
   enemy.hp -= dmg;
 
   const playerBucket = isCrit
-    ? (combatFlavor.player.crit[enemyType] || combatFlavor.player.crit.beast)
-    : (combatFlavor.player.normal[enemyType] || combatFlavor.player.normal.beast);
+    ? (combatFlavor.player.crit[enemyType] ||
+        combatFlavor.player.crit.beast)
+    : (combatFlavor.player.normal[enemyType] ||
+        combatFlavor.player.normal.beast);
 
   const playerLine = pickLine(playerBucket).replace("{name}", enemy.name);
   logSystem(`${playerLine} (${dmg} damage)`);
 
   if (enemy.hp <= 0) {
     const deathLines = [
-      `The ${enemy.name} hits the ground in a broken heap, blood pooling out to meet your boots.`,
-      `The ${enemy.name} twitches once, then lies open and still among its own remains.`,
-      `Whatever held the ${enemy.name} together gives out; it slumps into a ruin of meat and bone.`,
-      `The ${enemy.name}'s last breath rattles out in a wet gurgle as its body sags into the dirt.`
+      `The ${enemy.name} hits the ground in a broken heap.`,
+      `The ${enemy.name} twitches once, then lies still.`,
     ];
     logSystem(pickLine(deathLines));
     const xp = enemy.xpReward || 0;
     if (xp > 0) gainXp(xp);
 
-    // Special case: multi-rat fight in Rat-gnawed Vestibule
+    // Multi-rat fight in Vestibule
     if (
       gameState.location === "rat_gnawed_vestibule" &&
       gameState.flags &&
       gameState.flags.vestibuleRatsRemaining &&
       gameState.flags.vestibuleRatsRemaining > 1
     ) {
-      // One down, at least one left
       gameState.flags.vestibuleRatsRemaining--;
 
       const newEnemy = createEnemyInstance("dawnspire_rat");
@@ -1652,7 +1761,7 @@ function handleAttack() {
       gameState.combat.intent = null;
 
       logSystem(
-        "Something else skitters in the gnawed stone. Another starved tunnel-rat claws its way out of a hole, drawn by the blood."
+        "Something else skitters in the gnawed stone. Another tunnel-rat claws its way out of a hole, drawn by the blood."
       );
 
       gameState.combat.intent = chooseEnemyIntent(newEnemy);
@@ -1660,16 +1769,40 @@ function handleAttack() {
       return;
     }
 
-    // Vestibule fight fully cleared
     if (gameState.location === "rat_gnawed_vestibule") {
       gameState.flags.vestibuleCombatDone = true;
+    }
+
+    // Multi-soldier fight in Broken Barracks
+    if (
+      gameState.location === "broken_barracks" &&
+      gameState.flags &&
+      gameState.flags.barracksSoldiersRemaining &&
+      gameState.flags.barracksSoldiersRemaining > 1
+    ) {
+      gameState.flags.barracksSoldiersRemaining--;
+
+      const newEnemy = createEnemyInstance("desiccated_soldier");
+      gameState.combat.enemy = newEnemy;
+      gameState.combat.intent = null;
+
+      logSystem(
+        "Another desiccated soldier hauls itself upright from a nearby bunk, jaw hanging open in a soundless shout."
+      );
+
+      gameState.combat.intent = chooseEnemyIntent(newEnemy);
+      telegraphEnemyIntent(newEnemy, gameState.combat.intent);
+      return;
+    }
+
+    if (gameState.location === "broken_barracks") {
+      gameState.flags.barracksFightCleared = true;
     }
 
     endCombat();
     return;
   }
 
-  // Enemy responds according to its current intent
   enemyTurn(false);
 }
 
@@ -1681,20 +1814,17 @@ function handleRun() {
 
   const successRoll = roll(1, 100);
   if (successRoll <= 60) {
-    // Successful escape
     const prev = gameState.combat.previousLocation || "dark_forest_edge";
     logSystem("You turn and bolt, scrambling away from the fight!");
     endCombat();
     gameState.location = prev;
     describeLocation();
   } else {
-    // Failed escape
     logSystem("You try to flee, but the enemy cuts you off!");
     enemyTurn(false);
   }
 }
 
-// New: block
 function handleBlock() {
   if (!gameState.combat.inCombat || !gameState.combat.enemy) {
     logSystem("You raise your guard against nothing but your own nerves.");
@@ -1718,13 +1848,13 @@ function handleRest() {
   const p = gameState.player;
 
   if (p.hp >= p.maxHp) {
-    logSystem("You're already as patched up as you're going to get. Rest would only waste a ration.");
+    logSystem("You're already as patched up as you're going to get.");
     return;
   }
 
   const hadRation = consumeItemByType("ration");
   if (!hadRation) {
-    logSystem("You rummage through your pack, but there's nothing left to eat. No ration, no rest.");
+    logSystem("You rummage through your pack, but there's nothing left to eat.");
     return;
   }
 
@@ -1732,14 +1862,12 @@ function handleRest() {
   updateStatusBar();
 
   const restLines = [
-    "You find a patch of ground that isn't completely soaked or sharp, chew through a tasteless ration, and force yourself to breathe until the shaking slows. After a while, the pain dulls.",
-    "You sit with your back to cold stone, dry crumbs catching in your teeth as you choke down a ration. It's enough to steady your hands and pull your strength back together.",
-    "You wrap torn cloth a little tighter, swallow a ration that tastes of dust and salt, and let time drag past in the dark. Eventually, your body remembers how to feel whole.",
-    "You eat in silence, every bite a chore. The ration is stale, but it keeps you upright. When you stand again, your wounds have stopped screaming quite so loudly."
+    "You find a patch of ground that isn't completely soaked or sharp, chew through a tasteless ration, and breathe until the shaking slows.",
+    "You sit with your back to cold stone, chew down a ration that tastes of dust and salt, and let time drag past in the dark.",
   ];
 
   logSystem(pickLine(restLines));
-  logSystem(`Your strength crawls back. HP fully restored: ${p.hp}/${p.maxHp}.`);
+  logSystem(`HP fully restored: ${p.hp}/${p.maxHp}.`);
 }
 
 // =========================
@@ -1747,9 +1875,10 @@ function handleRest() {
 // =========================
 
 function handleGo(direction) {
-  // no moving while in combat
   if (gameState.combat.inCombat) {
-    logSystem("You're a little busy not dying right now. Try 'attack', 'block', or 'run'.");
+    logSystem(
+      "You're a little busy not dying right now. Try 'attack', 'block', or 'run'."
+    );
     return;
   }
 
@@ -1761,7 +1890,7 @@ function handleGo(direction) {
     gameState.location = "dark_forest_edge";
     logSystem("You walk north, leaving the safety of Briar's Edge behind...");
     describeLocation();
-    gainXp(5); // simple: reward exploring a bit
+    gainXp(5);
     return;
   }
 
@@ -1778,20 +1907,19 @@ function handleGo(direction) {
 
     gameState.location = "dungeon_entrance";
     logSystem(
-      "You follow the path to the quake-torn clearing. The broken stone ring looms ahead as you approach the Dawnspire Below..."
+      "You follow the path to the quake-torn clearing. The broken stone ring looms ahead..."
     );
     describeLocation();
 
-    // First encounter at the entrance
     if (!gameState.flags.firstDungeonFightDone) {
       gameState.flags.firstDungeonFightDone = true;
-      gameState.combat.previousLocation = fromLocation; // where 'run' will send you
+      gameState.combat.previousLocation = fromLocation;
       startCombat("dawnspire_rat");
     }
     return;
   }
 
-  // surface ring -> forest (only if not collapsed)
+  // surface ring -> forest
   if (loc === "dungeon_entrance" && direction === "south") {
     if (stairsCollapsed) {
       reportStairsCollapsed();
@@ -1803,19 +1931,19 @@ function handleGo(direction) {
     return;
   }
 
-  // surface ring -> Room 1 (Broken Ring Descent)
+  // surface ring -> Room 1
   if (loc === "dungeon_entrance" && direction === "down") {
     if (stairsCollapsed) {
       reportStairsCollapsed();
       return;
     }
     gameState.location = "broken_ring_descent";
-    logSystem("You step onto the worn stone steps and begin the descent into the throat of the Dawnspire.");
+    logSystem("You step onto the worn stone steps and begin the descent into the Dawnspire.");
     describeLocation();
     return;
   }
 
-  // Room 1 -> surface ring (only if not collapsed)
+  // Room 1 -> surface
   if (loc === "broken_ring_descent" && direction === "up") {
     if (stairsCollapsed) {
       reportStairsCollapsed();
@@ -1827,17 +1955,18 @@ function handleGo(direction) {
     return;
   }
 
-  // Room 1 -> Room 2 (Cracked Landing)
+  // Room 1 -> Room 2
   if (loc === "broken_ring_descent" && direction === "down") {
     gameState.location = "cracked_landing";
-    logSystem("You descend further, the walls pressing closer until the stairwell opens into a small, fractured ledge.");
+    logSystem(
+      "You descend further until the stairwell opens into a small, fractured ledge."
+    );
     describeLocation();
     return;
   }
 
-  // Room 2 – Cracked Landing logic
+  // Room 2
   if (loc === "cracked_landing") {
-    // Up: attempt to go back toward Room 1 / surface
     if (direction === "up") {
       if (stairsCollapsed) {
         reportStairsCollapsed();
@@ -1850,7 +1979,6 @@ function handleGo(direction) {
       }
     }
 
-    // Down/forward: toward Room 3, triggers the quake once
     if (direction === "down" || direction === "forward") {
       const firstTimeLeavingDeeper = !stairsCollapsed;
 
@@ -1859,10 +1987,10 @@ function handleGo(direction) {
       if (firstTimeLeavingDeeper) {
         gameState.flags.stairsCollapsed = true;
         logSystem(
-          "As you step off the landing, a deep groan rolls through the stone. The stairwell shudders violently. Above you, something gives way with a crack like breaking bone."
+          "As you step off the landing, a deep groan rolls through the stone. The stairwell shudders violently."
         );
         logSystem(
-          "You barely keep your footing as blocks the size of coffins crash down somewhere above, choking the stair in dust and rubble."
+          "Above, blocks crash down, choking the upper stair in dust and rubble."
         );
         reportStairsCollapsed();
       }
@@ -1872,29 +2000,27 @@ function handleGo(direction) {
     }
   }
 
-  // Room 3 – Collapsed Stairwell logic
+  // Room 3
   if (loc === "collapsed_stairwell") {
     if (direction === "up") {
-      // Up leads back to the Cracked Landing (2), but the way to the surface is blocked further above.
       gameState.location = "cracked_landing";
-      logSystem("You climb back up to the cracked landing, dust sifting down from the ruined stair above.");
+      logSystem(
+        "You climb back up to the cracked landing, dust sifting down from the ruined stair above."
+      );
       describeLocation();
       return;
     }
 
     if (direction === "down" || direction === "forward") {
-      // First time heading deeper, loose stone trap may hit.
       const alive = runCollapsedStairTrap();
-      if (!alive) {
-        // Player died in the trap; movement should not continue.
-        return;
-      }
+      if (!alive) return;
 
       gameState.location = "rat_gnawed_vestibule";
-      logSystem("Shaking the last of the dust from your shoulders, you push deeper down the warped stair into the gnawed stone ahead.");
+      logSystem(
+        "Shaking the last of the dust from your shoulders, you push deeper down the warped stair into the gnawed stone ahead."
+      );
       describeLocation();
 
-      // Guaranteed vestibule fight on first visit
       if (!gameState.flags.firstVestibuleVisit) {
         startVestibuleFight();
       }
@@ -1903,23 +2029,21 @@ function handleGo(direction) {
     }
   }
 
-  // Room 4 – Rat-gnawed Vestibule logic
+  // Room 4
   if (loc === "rat_gnawed_vestibule") {
-    // Back to Room 3
     if (direction === "west" || direction === "back") {
       gameState.location = "collapsed_stairwell";
       logSystem(
-        "You edge back toward the twisted stair, leaving the chewed tunnels behind you for now."
+        "You edge back toward the twisted stair, leaving the chewed tunnels behind."
       );
       describeLocation();
       return;
     }
 
-    // East -> Gnawed Storeroom (Room 5)
     if (direction === "east") {
       gameState.location = "gnawed_storeroom";
       logSystem(
-        "You push through a low, tooth-scored arch, ducking past hanging splinters of stone into a cramped side chamber."
+        "You push through a low, tooth-scored arch into a cramped side chamber."
       );
       const alive = runGnawedStoreroomTrap();
       if (!alive) return;
@@ -1927,22 +2051,20 @@ function handleGo(direction) {
       return;
     }
 
-    // North -> Outer Hall of Lanterns (Room 6)
     if (direction === "north") {
       gameState.location = "outer_hall_lanterns";
       logSystem(
-        "You follow a tunnel that climbs and straightens, the gnawed stone slowly giving way to a long hall of dead lantern brackets."
+        "You follow a tunnel that climbs and straightens, the gnawed stone giving way to a long hall of dead lantern brackets."
       );
       describeLocation();
 
-      // First-pass random rat or none
       if (!gameState.flags.outerHallFirstCheck) {
         gameState.flags.outerHallFirstCheck = true;
-        const spawn = roll(1, 100) <= 60; // 60% chance of a rat the first time
+        const spawn = roll(1, 100) <= 60;
         if (spawn) {
           gameState.combat.previousLocation = "rat_gnawed_vestibule";
           logSystem(
-            "From behind a cracked lantern base, something hairless and starving peels itself off the stone and drags into your path."
+            "From behind a cracked lantern base, something hairless and starving peels itself off the stone."
           );
           startCombat("dawnspire_rat");
         } else {
@@ -1956,7 +2078,7 @@ function handleGo(direction) {
     }
   }
 
-  // Room 5 – Gnawed Storeroom logic
+  // Room 5
   if (loc === "gnawed_storeroom") {
     if (direction === "west" || direction === "back") {
       gameState.location = "rat_gnawed_vestibule";
@@ -1968,12 +2090,12 @@ function handleGo(direction) {
     }
   }
 
-  // Room 6 – Outer Hall of Lanterns logic
+  // Room 6
   if (loc === "outer_hall_lanterns") {
     if (direction === "south") {
       gameState.location = "rat_gnawed_vestibule";
       logSystem(
-        "You retrace your steps, letting the dead lanterns fade behind you as you slip back toward the gnawed vestibule."
+        "You retrace your steps, letting the dead lanterns fade behind as you slip back toward the gnawed vestibule."
       );
       describeLocation();
       return;
@@ -1982,7 +2104,7 @@ function handleGo(direction) {
     if (direction === "east") {
       gameState.location = "flicker_node";
       logSystem(
-        "You follow the faint sense of tension in the stone until the hall cinches down into a smaller junction where a single intact lantern waits."
+        "You follow the faint sense of tension in the stone until the hall cinches down around a single intact lantern."
       );
       describeLocation();
       return;
@@ -1991,19 +2113,19 @@ function handleGo(direction) {
     if (direction === "north") {
       gameState.location = "door_failed_light";
       logSystem(
-        "You move north until the hall simply runs out of space, ending in a heavy stone door carved with a fractured sunburst and three dead crystal sockets."
+        "You move north until the hall ends in a heavy stone door carved with a fractured sunburst and three dead crystal sockets."
       );
       describeLocation();
       return;
     }
   }
 
-  // Room 7 – Flicker Node logic
+  // Room 7
   if (loc === "flicker_node") {
     if (direction === "west" || direction === "back") {
       gameState.location = "outer_hall_lanterns";
       logSystem(
-        "You back out of the cramped junction, letting the single lantern slip from view as the longer hall opens around you again."
+        "You back out of the cramped junction, letting the single lantern slip from view as the longer hall opens again."
       );
       describeLocation();
       return;
@@ -2019,12 +2141,12 @@ function handleGo(direction) {
     }
   }
 
-  // Room 8 – Door of Failed Light logic
+  // Room 8
   if (loc === "door_failed_light") {
     if (direction === "south" || direction === "back") {
       gameState.location = "outer_hall_lanterns";
       logSystem(
-        "You step back from the carved sunburst, letting the oppressive weight of the sealed door fall behind you as the lantern-lined hall opens again."
+        "You step back from the carved sunburst, letting the weight of the sealed door fall behind you."
       );
       describeLocation();
       return;
@@ -2038,27 +2160,26 @@ function handleGo(direction) {
 
       if (lit === 0) {
         logSystem(
-          "You press your weight against the stone. It doesn’t so much as shiver. With all three sockets blind, there’s nothing here for the door to listen to."
+          "You press your weight against the stone. It doesn't so much as shiver. With all three sockets blind, there's nothing here for the door to listen to."
         );
       } else if (lit === 1) {
         logSystem(
-          "As you strain against the door, one socket gives off the faintest warmth. Lines in the stone glow a dull ember’s red before fading. Not enough."
+          "As you strain against the door, one socket gives off the faintest warmth. Lines in the stone glow dull red before fading. Not enough."
         );
       } else if (lit === 2) {
         logSystem(
-          "Two of the sockets flare weakly, light crawling along the carved channels on either side of the door. You hear stone shift somewhere deep within—and then lock again. The third socket stays dead. The door does not move."
+          "Two sockets flare weakly, light crawling along carved channels. Something shifts deep within—and then locks again. The third socket stays dead."
         );
       } else {
-        // Future: once 7, 9, and 10 are wired as a full gate, this is where the door would actually open.
         logSystem(
-          "All three sockets thrum with buried light. The carved sunburst seems to swell, rays sharpening as lines of radiance bite along the stone. For now, though, whatever lies beyond remains unfinished—another piece of the Dawnspire still waiting to be written."
+          "All three sockets blaze with buried light. The sunburst seems to swell, rays sharpening, but for now the door remains a promise instead of a path."
         );
       }
       return;
     }
   }
 
-  // Room 9 – Mirror Gallery logic
+  // Room 9
   if (loc === "mirror_gallery") {
     if (direction === "south" || direction === "back") {
       gameState.location = "flicker_node";
@@ -2072,14 +2193,14 @@ function handleGo(direction) {
     if (direction === "east") {
       gameState.location = "shard_niche";
       logSystem(
-        "You follow the eastward corridor as it tightens, stone smoothing under your fingertips until it spills you into a small circular niche cut around a single pedestal."
+        "You follow the eastward corridor as it tightens, stone smoothing under your fingertips until it spills you into a small circular niche around a single pedestal."
       );
       describeLocation();
       return;
     }
   }
 
-  // Room 10 – Shard Niche logic
+  // Room 10
   if (loc === "shard_niche") {
     if (direction === "west" || direction === "back") {
       gameState.location = "mirror_gallery";
@@ -2093,14 +2214,14 @@ function handleGo(direction) {
     if (direction === "north") {
       gameState.location = "fallen_guard_post";
       logSystem(
-        "You take the short northern passage, ducking under a sagging lintel into a low room that still smells faintly of drill and duty."
+        "You take the short northern passage into a low room that still smells faintly of drill and duty."
       );
       describeLocation();
       return;
     }
   }
 
-  // Room 11 – Fallen Guard Post logic
+  // Room 11
   if (loc === "fallen_guard_post") {
     if (direction === "south" || direction === "back") {
       gameState.location = "shard_niche";
@@ -2121,12 +2242,33 @@ function handleGo(direction) {
     }
   }
 
-  // Room 12 – Broken Barracks logic
+  // Room 12
   if (loc === "broken_barracks") {
     if (direction === "west" || direction === "back") {
       gameState.location = "fallen_guard_post";
       logSystem(
         "You leave the broken bunks behind and step back into the cramped guard post and its cracked bell."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north") {
+      gameState.location = "lantern_muster_hall";
+      logSystem(
+        "You move past the last line of ruined bunks into a broader chamber where the garrison once gathered."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 13
+  if (loc === "lantern_muster_hall") {
+    if (direction === "south" || direction === "back") {
+      gameState.location = "broken_barracks";
+      logSystem(
+        "You step away from the empty racks and return to the broken barracks."
       );
       describeLocation();
       return;
@@ -2147,16 +2289,17 @@ function handleHelp() {
       "  help               - show this help",
       "  look               - describe your surroundings or current foe",
       "  inventory (or inv) - show your items",
-      "  go <direction>     - move (e.g., 'go north', 'go down', 'go forward', 'go back')",
+      "  go <direction>     - move (north, south, east, west, up, down, forward, back)",
       "  name <your name>   - set your name",
       "  attack             - attack the enemy in combat",
       "  block              - brace to blunt the enemy's next attack",
       "  run                - attempt to flee from combat",
       "  rest               - consume a ration to fully restore your HP",
-      "  use <item>         - use an item (e.g., 'use bandage', 'use shard', 'use bell')",
+      "  use <item>         - use an item (e.g., 'use bandage', 'use shard', 'use draught', 'use journal')",
       "  equip <item>       - equip a weapon or shield (e.g., 'equip buckler', 'equip spear')",
-      "  adjust <target>    - adjust environmental mechanisms (e.g., 'adjust mirrors east', 'adjust mirrors door')",
+      "  adjust <target>    - adjust mechanisms (e.g., 'adjust mirrors east', 'adjust mirrors door')",
       "  ring <thing>       - ring something, where appropriate (e.g., 'ring bell' in the guard post)",
+      "  search             - search the area for hidden things (and problems)",
       "  reset              - wipe your progress and restart",
     ].join("\n")
   );
@@ -2176,20 +2319,15 @@ function handleName(name) {
 
 function showIntro() {
   const introText = [
-    "Briar's Edge is a quiet village on the very edge of the Shaded Frontier, one of the last places where the empire's maps fade away into wilderness.",
+    "Briar's Edge is a quiet village on the very edge of the Shaded Frontier, where the empire's maps fade into wilderness.",
     "",
-    "You grew up hearing stories of the Lantern Knights, wanderers who carried crystal lanterns into the deep woods to fight back the darkness.",
-    "You believed every word of those tales. Maybe you still do.",
+    "You grew up hearing stories of the Lantern Knights, wanderers who carried crystal lanterns into the deep woods to fight back the dark.",
     "",
     "Recently, rumors spread of an ancient ruin unearthed after a quake: a stone ring jutting from the earth, leading down into what people now call the Dawnspire Below.",
-    "Some whisper of treasure. Others of relics left behind by the Lantern Knights.",
-    "And strangely, posters appeared overnight in the village square, promising fame, fortune, and glory to anyone brave enough to enter.",
     "",
-    "Armed with a rust-flecked sword and an oversized pack, you step toward the forest's edge. The morning is still. Too still.",
+    "Armed with a rust-flecked sword and an oversized pack, you step toward the forest's edge.",
     "",
-    "But the northern path draws you in, just as the old stories once did.",
-    "",
-    "And somewhere far below the ground, something stirs, waiting for you to arrive.",
+    "Somewhere far below, something stirs, waiting for you to arrive.",
   ].join("\n");
 
   logSystem(introText);
@@ -2242,7 +2380,7 @@ function handleReset() {
 // Command parser
 // =========================
 
-function handleCombatCommand(cmd, raw, rest) {
+function handleCombatCommand(cmd, raw) {
   switch (cmd) {
     case "attack":
       handleAttack();
@@ -2264,7 +2402,9 @@ function handleCombatCommand(cmd, raw, rest) {
       break;
     }
     case "equip":
-      logSystem("You don't have time to fumble with gear while something is trying to open you up.");
+      logSystem(
+        "You don't have time to fumble with gear while something is trying to open you up."
+      );
       break;
     case "adjust":
       logSystem("You don't have the luxury of fiddling with mechanisms mid-fight.");
@@ -2282,8 +2422,13 @@ function handleCombatCommand(cmd, raw, rest) {
     case "rest":
       logSystem("You can't rest while something is trying to rip you open.");
       break;
+    case "search":
+      logSystem("You can't spare the attention to search right now.");
+      break;
     default:
-      logSystem("In the heat of battle, that command makes no sense. Try 'attack', 'block', 'run', or 'use bandage'.");
+      logSystem(
+        "In the heat of battle, that command makes no sense. Try 'attack', 'block', 'run', or 'use bandage'."
+      );
       break;
   }
 }
@@ -2298,7 +2443,7 @@ function handleCommand(raw) {
   const argStr = rest.join(" ");
 
   if (gameState.combat.inCombat) {
-    handleCombatCommand(cmd, raw, rest);
+    handleCombatCommand(cmd, raw);
     scheduleSave();
     return;
   }
@@ -2322,7 +2467,6 @@ function handleCommand(raw) {
       }
       break;
     case "name":
-      // preserve capitalization after 'name '
       handleName(raw.slice(5).trim());
       break;
     case "attack":
@@ -2349,15 +2493,19 @@ function handleCommand(raw) {
     case "ring":
       handleRing(raw.slice(5).trim(), { inCombat: false });
       break;
+    case "search":
+      handleSearch();
+      break;
     case "reset":
       handleReset();
       break;
     default:
-      logSystem("You mumble, unsure what that means. (Type 'help' for commands.)");
+      logSystem(
+        "You mumble, unsure what that means. (Type 'help' for commands.)"
+      );
       break;
   }
 
-  // After each command, schedule a save
   scheduleSave();
 }
 
@@ -2424,7 +2572,11 @@ async function loadGameFromServer() {
       Object.assign(gameState, data.state);
       ensureEquipment();
       logSystem("Welcome back. Your adventure has been restored.");
-      if (gameState.combat && gameState.combat.inCombat && gameState.combat.enemy) {
+      if (
+        gameState.combat &&
+        gameState.combat.inCombat &&
+        gameState.combat.enemy
+      ) {
         logSystem("You come back to your senses in the middle of a fight!");
       }
       describeLocation();
@@ -2446,7 +2598,6 @@ async function loadGameFromServer() {
 // =========================
 
 window.addEventListener("DOMContentLoaded", () => {
-  // Grab DOM elements now that they exist
   outputEl = document.getElementById("output");
   formEl = document.getElementById("command-form");
   inputEl = document.getElementById("command-input");
