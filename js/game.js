@@ -36,9 +36,12 @@ const gameState = {
     // outerHallFirstCheck: false,
     // gotFlickerNodeLoot: false,
     // flickerShardAligned: false,
-    // mirrorShardAligned: false,      // future: shard in room 9
+    // mirrorShardAligned: false,      // beam properly bent toward door
     // deepNodeShardAligned: false,    // future: shard in room 10
     // doorOfFailedLightOpened: false, // future: when all three beams are online
+    // mirrorBeamToNiche: false,       // 9 -> beam east toward 10
+    // mirrorBeamToDoor: false,        // 9 -> beam toward 8
+    // mirrorGalleryHintShown: false,
   },
   combat: {
     inCombat: false,
@@ -415,12 +418,12 @@ const locations = {
     ].join(" "),
   },
 
-  // Room 9 – Mirror Gallery (placeholder)
+  // Room 9 – Mirror Gallery
   mirror_gallery: {
     name: "Dawnspire – Mirror Gallery",
     description: [
-      "The passage opens into a longer chamber ribbed with tall, cracked mirror panels. Some hang at crooked angles, others have slumped half-free of their frames, spiderwebbed with fractures.",
-      "Whatever light once lived here was meant to be sliced, redirected, and braided along the walls—but now only dust and your own reflection stare back in a dozen broken pieces."
+      "The passage opens into a narrow hall ribbed with tall mirror panels. Most are cracked or clouded, some slumped half-free of their frames, spiderwebbed fractures catching the lichen-glow in broken veins.",
+      "A few panels still pivot loosely on corroded brackets. With enough patience—and a little cruelty—you could adjust them to catch and bend any light that wanders in."
     ].join(" "),
   },
 };
@@ -450,7 +453,7 @@ const exitsByLocation = {
   door_failed_light:
     "Obvious exits: south/back – to the Outer Hall of Lanterns; north – deeper into the Dawnspire, if the door ever opens.",
   mirror_gallery:
-    "Obvious exits: south/back – to the flicker node junction.",
+    "Obvious exits: south/back – to the flicker node junction; east – toward a tighter passage ending in a shard niche that you haven't quite carved into being yet.",
 };
 
 function printExitsForLocation(id) {
@@ -499,6 +502,14 @@ function handleTrapDeath(trapKey) {
         "The bone-drift blooms outward in a living tide. Tiny claws and needle teeth find every gap in cloth and flesh at once. You go down under them, swallowed in a single, frantic shriek.",
         "The floor flexes with something beneath the bones. Then they burst upward in a writhing wave that knocks you flat. You choke on fur and hot copper as they eat all the soft parts first.",
         "You stagger as the bones shift—and the room erupts. A squealing storm climbs your body, chewing through tendon and throat before your hands can even close around a weapon."
+      ];
+      break;
+    case "mirror_flash":
+      lines = [
+        "You tip a mirror too far. The beam hits your eyes full-on—white fire knifes through your skull, and the rest of the world never quite makes it back.",
+        "For a heartbeat, every panel shares your reflection. Then the light folds and slams straight into your face. Sight goes first, then balance, then everything else.",
+        "The beam ricochets between cracked glass and lands on you like a hammer. Nerves detonate behind your eyes; you hit the floor already halfway out of your body.",
+        "You catch a perfect angle by accident. The hall vanishes in a sheet of white pain that tears through your skull and leaves nothing worth standing back up in it."
       ];
       break;
     default:
@@ -684,7 +695,7 @@ function startVestibuleFight() {
 }
 
 // =========================
-// Use / bandage / equip system
+// Use / bandage / equip / mirrors
 // =========================
 
 function useBandage(inCombat) {
@@ -805,6 +816,92 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
   logSystem("You don't have a clear way to use that right now.");
 }
 
+// Mirror adjustment in room 9
+function handleAdjust(rawArgs) {
+  const arg = (rawArgs || "").trim().toLowerCase();
+
+  if (gameState.location !== "mirror_gallery") {
+    logSystem("You prod and nudge at your surroundings, but nothing here feels built to be adjusted that way.");
+    return;
+  }
+
+  const hasBeam = !!gameState.flags.flickerShardAligned;
+
+  if (!hasBeam) {
+    logSystem(
+      "You shove at a few cracked panels. They creak and shed dust, but without any light to catch, all you do is rearrange your own reflection."
+    );
+    return;
+  }
+
+  // Chance to misalign and trigger trap
+  const misalignRoll = roll(1, 100); // ~30% chance of a bad flash
+  if (misalignRoll <= 30) {
+    logSystem(
+      "You wrench one of the looser mirrors a little too far. For a heartbeat, every panel finds the same cruel angle."
+    );
+
+    const p = gameState.player;
+    const dmg = roll(1, 3);
+    p.hp -= dmg;
+
+    if (p.hp <= 0) {
+      p.hp = 0;
+      updateStatusBar();
+      handleTrapDeath("mirror_flash");
+      return;
+    }
+
+    updateStatusBar();
+    logSystem(
+      `White fire detonates behind your eyes. When the world staggers back into place, everything swims at the edges. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
+    );
+    // Leave beam state unchanged on a misalignment flash.
+    return;
+  }
+
+  const wantsEast = arg.includes("east");
+  const wantsDoor =
+    arg.includes("door") || arg.includes("gate") || arg.includes("sun") || arg.includes("north");
+
+  if (!wantsEast && !wantsDoor) {
+    // Fussy, imprecise adjustment: beam ends up jittering.
+    gameState.flags.mirrorBeamToNiche = false;
+    gameState.flags.mirrorBeamToDoor = false;
+    gameState.flags.mirrorShardAligned = false;
+
+    logSystem(
+      "You nudge a few panels into new positions. The beam skitters from crack to crack, never settling long enough to commit to any single path."
+    );
+    return;
+  }
+
+  if (wantsEast) {
+    gameState.flags.mirrorBeamToNiche = true;
+    gameState.flags.mirrorBeamToDoor = false;
+    gameState.flags.mirrorShardAligned = false;
+
+    logSystem(
+      "You angle a trio of still-loose panels until the beam spears away to the east, threading through a narrow gap toward a side passage you’ve yet to fully claim."
+    );
+    return;
+  }
+
+  if (wantsDoor) {
+    gameState.flags.mirrorBeamToDoor = true;
+    gameState.flags.mirrorBeamToNiche = false;
+    gameState.flags.mirrorShardAligned = true;
+
+    logSystem(
+      "Patient, careful adjustments bring the beam around in a broken arc—panel to panel, fracture to fracture—until it slips out of the gallery at a shallow, southward angle."
+    );
+    logSystem(
+      "You can almost feel it knifing down the stone toward the heavy door somewhere beyond, testing the old mechanism that remembers what aligned light is supposed to feel like."
+    );
+    return;
+  }
+}
+
 function describeLocation() {
   const loc = locations[gameState.location];
   if (!loc) {
@@ -856,15 +953,32 @@ function describeLocation() {
     }
   }
 
-  // special: Mirror Gallery reacts to whether the beam is active
+  // special: Mirror Gallery reacts to beam and mirror orientation
   if (gameState.location === "mirror_gallery") {
-    if (gameState.flags.flickerShardAligned) {
+    if (!gameState.flags.mirrorGalleryHintShown) {
+      gameState.flags.mirrorGalleryHintShown = true;
       logSystem(
-        "A faint thread of light slips in from the south, catching the edge of one cracked panel. It splinters weakly across the others, hinting at how the gallery once braided brightness through the stone."
+        "A few of the taller panels still pivot if you lean your weight into them. With the right angles, you could 'adjust mirrors east' to send a beam into the side passage, or 'adjust mirrors door' to bend it back toward the carved gate."
+      );
+    }
+
+    const hasBeam = !!gameState.flags.flickerShardAligned;
+
+    if (!hasBeam) {
+      logSystem(
+        "Without any source to feed them, the mirrors show nothing but dust and fractured reflections. The room feels like a puzzle waiting for someone else’s mistake."
+      );
+    } else if (gameState.flags.mirrorBeamToNiche) {
+      logSystem(
+        "A thin thread of light slips in from the south and catches an angled panel, then another, before knifing off to the east. The side passage drinks it in and vanishes around a bend."
+      );
+    } else if (gameState.flags.mirrorBeamToDoor) {
+      logSystem(
+        "The incoming beam fractures and reforms across several panels, finally sliding out of the gallery at a slant that feels wrong for you—but right for whatever door is listening in the stone beyond."
       );
     } else {
       logSystem(
-        "Without any source to feed them, the mirrors show nothing but dust and fractured reflections. The gallery feels like a question that hasn't been asked properly yet."
+        "A restless line of light jitters from crack to crack, never quite settling. Every tiny adjustment seems to threaten either clarity or ruin."
       );
     }
   }
@@ -1583,7 +1697,7 @@ function handleGo(direction) {
     if (direction === "north") {
       gameState.location = "mirror_gallery";
       logSystem(
-        "You move north, following where the lantern’s cracked mirror panel points. The stone opens into a chamber lined with tall, damaged mirrors."
+        "You move north, following where the lantern’s cracked mirror panel points. The stone opens into a hall lined with tall, damaged mirrors."
       );
       describeLocation();
       return;
@@ -1629,7 +1743,7 @@ function handleGo(direction) {
     }
   }
 
-  // Room 9 – Mirror Gallery logic (placeholder paths)
+  // Room 9 – Mirror Gallery logic
   if (loc === "mirror_gallery") {
     if (direction === "south" || direction === "back") {
       gameState.location = "flicker_node";
@@ -1637,6 +1751,13 @@ function handleGo(direction) {
         "You step back out of the broken reflections and return to the tight junction where the beam begins."
       );
       describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      logSystem(
+        "You peer along the eastward passage, sensing where some tighter chamber—the shard niche—ought to be. For now, that part of the Dawnspire is still more intention than stone."
+      );
       return;
     }
   }
@@ -1663,6 +1784,7 @@ function handleHelp() {
       "  rest               - consume a ration to fully restore your HP",
       "  use <item>         - use an item (e.g., 'use bandage', 'use shard')",
       "  equip <item>       - equip a weapon or shield (e.g., 'equip buckler')",
+      "  adjust <target>    - adjust environmental mechanisms (e.g., 'adjust mirrors east', 'adjust mirrors door')",
       "  reset              - wipe your progress and restart",
     ].join("\n")
   );
@@ -1767,6 +1889,9 @@ function handleCombatCommand(cmd, raw, rest) {
     case "equip":
       logSystem("You don't have time to fumble with gear while something is trying to open you up.");
       break;
+    case "adjust":
+      logSystem("You don't have the luxury of fiddling with mechanisms mid-fight.");
+      break;
     case "look":
       handleLook();
       break;
@@ -1840,6 +1965,9 @@ function handleCommand(raw) {
       break;
     case "equip":
       handleEquip(raw.slice(6).trim());
+      break;
+    case "adjust":
+      handleAdjust(raw.slice(6).trim());
       break;
     case "reset":
       handleReset();
