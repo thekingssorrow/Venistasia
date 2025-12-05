@@ -138,7 +138,7 @@ function getEquippedWeapon() {
 }
 
 // =========================
-– Combat flavor text
+// Combat flavor text
 // =========================
 
 const combatFlavor = {
