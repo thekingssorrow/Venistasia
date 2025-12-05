@@ -23,7 +23,7 @@ const gameState = {
   ],
   location: "village_square",
   flags: {
-    // dynamic flags as you play
+    // filled as you play
   },
   combat: {
     inCombat: false,
@@ -182,7 +182,7 @@ const combatFlavor = {
 };
 
 // =========================
-// DOM references (filled on DOMContentLoaded)
+// DOM references
 // =========================
 
 let outputEl,
@@ -380,6 +380,27 @@ const locations = {
       "At the room’s center, the flagstones give way to a cracked stone relief-map of the Dawnspire itself—three concentric rings etched into the floor, shattered by jagged fault-lines.",
     ].join(" "),
   },
+
+  // Room 14 – Armory of Dust
+  armory_of_dust: {
+    name: "Dawnspire – Armory of Dust",
+    description: [
+      "Weapon racks stand in leaning rows, their hooks hung with shapes that were once steel and are now little more than red-brown flakes.",
+      "Every breath disturbs a skin of rust on the floor, sending tiny metallic ghosts swirling in the lantern-light.",
+      "Here and there, something has survived: a few intact blades, a handful of shield-bosses, and one sword that looks almost too perfect for this graveyard.",
+    ].join(" "),
+  },
+
+  // Room 16 – Hidden Shrine to the Flame
+  hidden_shrine_flame: {
+    name: "Dawnspire – Hidden Shrine to the Flame",
+    description: [
+      "You crawl out of the low passage into a cramped chamber barely larger than a cell.",
+      "The walls are blackened stone, carved with overlapping circles of lanterns and stylized flames, all scorched until the details blur.",
+      "At the far end, a small altar of cracked marble squats beneath a soot-stained sigil of a lantern burning upside-down.",
+      "Someone knelt here often enough to wear two shallow depressions into the stone floor.",
+    ].join(" "),
+  },
 };
 
 // Exits helper text for each location
@@ -415,7 +436,11 @@ const exitsByLocation = {
   broken_barracks:
     "Obvious exits: west/back – to the fallen guard post; north – into a broader hall where lantern-bearers once gathered.",
   lantern_muster_hall:
-    "Obvious exits: south/back – to the broken barracks; east – toward a sealed armory choked with dust; north – toward a watch balcony over the halls.",
+    "Obvious exits: south/back – to the broken barracks; east – into an old armory; north – toward a watch balcony over the halls.",
+  armory_of_dust:
+    "Obvious exits: west/back – to the Lantern Muster Hall; east – a low, shadowed gap in the racks (if you’ve found it).",
+  hidden_shrine_flame:
+    "Obvious exits: west/back – crawl back through the tight passage to the Armory of Dust.",
 };
 
 function printExitsForLocation(id) {
@@ -470,6 +495,11 @@ function handleTrapDeath(trapKey) {
     case "barracks_collapse":
       lines = [
         "The bunk gives way under your weight. You fall with it into the fissure, stone and splintered wood slamming you into the dark.",
+      ];
+      break;
+    case "armory_rust_cloud":
+      lines = [
+        "You grab the perfect blade and it explodes into dust in your hands. Rust floods your eyes and mouth as your lungs seize and everything goes hard and black.",
       ];
       break;
     default:
@@ -745,6 +775,108 @@ function maybeGrantGuardPostLoot() {
   }
 }
 
+// helper: Armory Trap + Loot + Secret Crawl
+function runArmoryTrapAndLoot() {
+  if (gameState.flags.armoryTrapDone) {
+    if (!gameState.flags.armoryLootTaken) {
+      maybeGrantArmoryLoot();
+    } else {
+      logSystem(
+        "Most of what might have been useful in the armory is either dust or already on your back."
+      );
+    }
+    return;
+  }
+
+  gameState.flags.armoryTrapDone = true;
+
+  logSystem(
+    "Among the flaking wreckage of blades, one sword catches your eye—straight, untarnished, almost eager to be taken."
+  );
+  logSystem(
+    "Your fingers close around the hilt. The metal gives like stale bread. The entire blade collapses into a choking cloud of rust that explodes across your face and chest."
+  );
+
+  const dmg = roll(1, 3);
+  const p = gameState.player;
+  p.hp -= dmg;
+
+  if (p.hp <= 0) {
+    p.hp = 0;
+    updateStatusBar();
+    handleTrapDeath("armory_rust_cloud");
+    return;
+  }
+
+  updateStatusBar();
+  logSystem(
+    `You stagger back, eyes burning, lungs rasping around the taste of blood and metal. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
+  );
+
+  maybeGrantArmoryLoot();
+}
+
+function maybeGrantArmoryLoot() {
+  if (gameState.flags.armoryLootTaken) return;
+  gameState.flags.armoryLootTaken = true;
+
+  const ironSword = {
+    id: "iron-sword",
+    name: "Serviceable Iron Sword",
+    type: "weapon",
+    atk: 2, // upgrade from rusty sword (1)
+  };
+
+  const shard3 = {
+    id: "lantern-shard-3",
+    name: "Lantern Shard (Third Fragment)",
+    type: "key",
+  };
+
+  const coinCount = roll(1, 3);
+  const coins = [];
+  for (let i = 0; i < coinCount; i++) {
+    coins.push({
+      id: "dawnspire-coin",
+      name: "Dawnspire Coin",
+      type: "coin",
+    });
+  }
+
+  gameState.inventory.push(ironSword, shard3, ...coins);
+
+  logSystem(
+    "When the rust settles, you notice a sturdier blade still sheathed in its own decay: an iron sword whose edge has somehow survived."
+  );
+  logSystem(
+    "On a lower rack, a shield-boss lies half-buried in red dust. Its center holds a wedge of prismatic crystal, fused deep into the metal."
+  );
+  logSystem(
+    "You pry the shard free and shake a few loose coins from under the collapsed racks."
+  );
+  logSystem(
+    `You gain: Serviceable Iron Sword, Lantern Shard (Third Fragment), Dawnspire Coins (${coinCount}).`
+  );
+
+  // Auto-equip if it's clearly better
+  ensureEquipment();
+  const current = getEquippedWeapon();
+  if (!current || (current.atk || 0) < ironSword.atk) {
+    gameState.player.equipment.weaponId = "iron-sword";
+    logSystem(
+      "You discard your inferior steel in favor of the iron blade. It feels honest in your grip—heavy, but willing."
+    );
+  }
+
+  // Reveal secret crawlspace
+  if (!gameState.flags.armorySecretRevealed) {
+    gameState.flags.armorySecretRevealed = true;
+    logSystem(
+      "As you move the racks aside, rust and splinters crumble away to reveal a low, dark gap in the eastern wall—barely wide enough to crawl through."
+    );
+  }
+}
+
 // helper: bell ring logic in Fallen Guard Post
 function triggerBellRing() {
   if (gameState.flags.guardPostBellRung) {
@@ -998,7 +1130,7 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
     return;
   }
 
-  // Bandages – mid-combat heal + damage prevention
+  // Bandages – mid-combat heal
   if (arg.includes("bandage")) {
     const used = useBandage(inCombat);
     if (!used) return;
@@ -1263,6 +1395,18 @@ function handleSearch() {
     return;
   }
 
+  if (loc === "armory_of_dust") {
+    runArmoryTrapAndLoot();
+    return;
+  }
+
+  if (loc === "hidden_shrine_flame") {
+    logSystem(
+      "You check behind the altar and around the scorched carvings. Whatever was once tended here has already been stripped down to memory and soot."
+    );
+    return;
+  }
+
   logSystem("You take a moment to search, but nothing new turns up.");
 }
 
@@ -1445,6 +1589,19 @@ function describeLocation() {
 
     if (!gameState.flags.lanternMusterFightCleared) {
       startLanternMusterFight();
+    }
+  }
+
+  // Armory of Dust – note secret if revealed
+  if (gameState.location === "armory_of_dust") {
+    if (gameState.flags.armorySecretRevealed) {
+      logSystem(
+        "Between two sagging racks on the eastern side, a low, dark gap waits where stone has crumbled away—a crawlspace, if you’re willing to scrape your shoulders."
+      );
+    } else {
+      logSystem(
+        "Most of the racks lean inward, closing the room in around you. Any secrets here are still buried under rust and splinters."
+      );
     }
   }
 
@@ -2335,9 +2492,11 @@ function handleGo(direction) {
     }
 
     if (direction === "east") {
+      gameState.location = "armory_of_dust";
       logSystem(
-        "An archway to the east is choked with fallen stone and warped iron racks. An armory waits there, but for now it’s more ruin than room."
+        "You push through a squat doorway flanked by empty weapon racks into a lower, dust-choked chamber of rust and ruin."
       );
+      describeLocation();
       return;
     }
 
@@ -2345,6 +2504,46 @@ function handleGo(direction) {
       logSystem(
         "A stair climbs toward a watch balcony overlooking these halls, but the steps ahead blur into unfinished stone and half-formed edges. That part of the Dawnspire isn’t ready yet."
       );
+      return;
+    }
+  }
+
+  // Room 14 – Armory of Dust
+  if (loc === "armory_of_dust") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "lantern_muster_hall";
+      logSystem(
+        "You leave the rust-thick air of the armory behind and step back into the banner-hung muster hall."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      if (!gameState.flags.armorySecretRevealed) {
+        logSystem(
+          "You press along the eastern wall, but all you find are solid stone and flakes of ancient rust."
+        );
+        return;
+      }
+
+      gameState.location = "hidden_shrine_flame";
+      logSystem(
+        "You drop to hands and knees and squeeze through the low gap between collapsed racks, stone scraping your shoulders until the world opens just enough to stand again."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 16 – Hidden Shrine to the Flame
+  if (loc === "hidden_shrine_flame") {
+    if (direction === "west" || direction === "back") {
+      gameState.location = "armory_of_dust";
+      logSystem(
+        "You duck back into the tight crawlspace, dragging yourself through grit and old ash until the broader shape of the armory opens around you again."
+      );
+      describeLocation();
       return;
     }
   }
@@ -2370,7 +2569,7 @@ function handleHelp() {
       "  run                - attempt to flee from combat",
       "  rest               - consume a ration to fully restore your HP",
       "  use <item>         - use an item (e.g., 'use bandage', 'use shard', 'use draught', 'use journal')",
-      "  equip <item>       - equip a weapon or shield (e.g., 'equip buckler', 'equip spear')",
+      "  equip <item>       - equip a weapon or shield (e.g., 'equip buckler', 'equip spear', 'equip sword')",
       "  adjust <target>    - adjust mechanisms (e.g., 'adjust mirrors east', 'adjust mirrors door')",
       "  ring <thing>       - ring something, where appropriate (e.g., 'ring bell' in the guard post)",
       "  search             - search the area for hidden things (and problems)",
