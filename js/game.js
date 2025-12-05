@@ -114,7 +114,7 @@ function getEquippedWeapon() {
 }
 
 // =========================
-// Combat flavor text (trimmed sets)
+// Combat flavor text
 // =========================
 
 const combatFlavor = {
@@ -401,14 +401,13 @@ const locations = {
     ].join(" "),
   },
 
-  // Room 16 – Hidden Shrine to the Flame
+  // Room 16 – Hidden Shrine to the Flame (Secret Room)
   hidden_shrine_flame: {
     name: "Dawnspire – Hidden Shrine to the Flame",
     description: [
-      "You crawl out of the low passage into a cramped chamber barely larger than a cell.",
-      "The walls are blackened stone, carved with overlapping circles of lanterns and stylized flames, all scorched until the details blur.",
-      "At the far end, a small altar of cracked marble squats beneath a soot-stained sigil of a lantern burning upside-down.",
-      "Someone knelt here often enough to wear two shallow depressions into the stone floor.",
+      "You squeeze out of the crawl into a small circular chamber carved smooth and close.",
+      "At its center stands an intact statue of a Lantern Knight, stone cloak swept back, one gauntleted hand held out as if offering or asking.",
+      "Nestled in the statue’s other hand burns a crystal flame—pale, steady, and somehow untouched by dust.",
     ].join(" "),
   },
 
@@ -1180,6 +1179,51 @@ function handleEquip(rawArgs) {
   updateStatusBar();
 }
 
+function grantShrineBlessingAndCharm() {
+  if (gameState.flags.shrineBlessingGranted) return;
+
+  gameState.flags.shrineBlessingGranted = true;
+  gameState.flags.shrineBlessingActive = true;
+
+  // Loot: Flame-Touched Charm
+  if (!gameState.flags.shrineLootTaken) {
+    gameState.flags.shrineLootTaken = true;
+    const charm = {
+      id: "flame-touched-charm",
+      name: "Flame-Touched Charm",
+      type: "charm",
+    };
+    gameState.inventory.push(charm);
+    logSystem(
+      "As the crystal flame swells, a sliver of it gutters loose and hardens into a small charm—warm to the touch, threaded with a quiet inner glow."
+    );
+    logSystem("You gain: Flame-Touched Charm.");
+  }
+
+  const p = gameState.player;
+  // Small immediate top-off feels nice
+  const before = p.hp;
+  p.hp = Math.min(p.maxHp, p.hp + 5);
+  updateStatusBar();
+
+  logSystem(
+    "Light floods up through the statue’s arm, into the crystal flame, and then out through the chamber. For a heartbeat, you feel as though you’re standing in noon sunlight instead of buried stone."
+  );
+  logSystem(
+    "The warmth pools behind your ribs and settles there, a thin burning thread that refuses to go out."
+  );
+
+  if (p.hp > before) {
+    logSystem(
+      `You feel some of your wounds knit under the heat. (+${p.hp - before} HP, now ${p.hp}/${p.maxHp})`
+    );
+  }
+
+  logSystem(
+    "You carry a quiet certainty now: the first blow that should kill you in battle will leave you hanging on at the edge instead."
+  );
+}
+
 function handleUse(rawArgs, { inCombat = false } = {}) {
   const arg = (rawArgs || "").trim().toLowerCase();
   if (!arg) {
@@ -1228,6 +1272,32 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
     logSystem(
       "Another line, half-smeared: \"If anyone finds this—remember: light isn't the only thing that can hold a gate.\""
     );
+    return;
+  }
+
+  // Lantern Shard in Hidden Shrine – blessing + charm
+  if (
+    (arg.includes("shard") || arg.includes("crystal")) &&
+    gameState.location === "hidden_shrine_flame"
+  ) {
+    if (!playerHasLanternShard()) {
+      logSystem(
+        "You lay an empty hand in the statue’s open palm. The crystal flame flickers once, politely, and then ignores you."
+      );
+      return;
+    }
+
+    if (gameState.flags.shrineBlessingGranted) {
+      logSystem(
+        "You press a shard into the statue’s hand again. The crystal flame stirs, but whatever bargain it made with you is already sealed."
+      );
+      return;
+    }
+
+    logSystem(
+      "You ease a Lantern Shard into the Knight’s outstretched hand. For a moment it simply rests there, a dull sliver against stone."
+    );
+    grantShrineBlessingAndCharm();
     return;
   }
 
@@ -1469,7 +1539,7 @@ function handleSearch() {
 
   if (loc === "hidden_shrine_flame") {
     logSystem(
-      "You check behind the altar and around the scorched carvings. Whatever was once tended here has already been stripped down to memory and soot."
+      "You circle the small chamber, checking behind the statue and along the curved walls. There’s nothing else hidden here—the Knight and its flame are the point."
     );
     return;
   }
@@ -1693,6 +1763,36 @@ function describeLocation() {
     );
   }
 
+  // Hidden Shrine to the Flame – hint and blessing state
+  if (gameState.location === "hidden_shrine_flame") {
+    const hasShard = playerHasLanternShard();
+    const blessed = !!gameState.flags.shrineBlessingGranted;
+    const active = !!gameState.flags.shrineBlessingActive;
+
+    if (!blessed) {
+      if (hasShard) {
+        logSystem(
+          "The Knight’s outstretched hand is worn smooth in the palm, as if it has held something sharp and prismatic a thousand times. The crystal flame leans toward whatever you’re carrying."
+        );
+        logSystem(
+          "(You could try 'use shard' or 'use crystal' here.)"
+        );
+      } else {
+        logSystem(
+          "The Knight’s open hand is empty, fingers curled as if expecting a weight that never arrived. The crystal flame burns patiently, waiting."
+        );
+      }
+    } else if (active) {
+      logSystem(
+        "The crystal flame burns with a quiet intensity that never quite fades. You can feel a thin thread of its heat coiled somewhere behind your heart, ready to jerk you back from the edge once."
+      );
+    } else {
+      logSystem(
+        "The crystal flame is smaller now, burned down to a steady ember. Its warmth has already paid out its debt to you."
+      );
+    }
+  }
+
   // Upper Cistern Walk – small note
   if (gameState.location === "upper_cistern_walk") {
     logSystem(
@@ -1775,6 +1875,7 @@ const enemyTemplates = {
     atkMin: 2,
     atkMax: 4,
     xpReward: 20,
+    isUndead: true,
     description:
       "The corpse wears the ragged remains of a garrison tabard. Skin clings tight to bone, eyes sunken to dark pits that still somehow track your movements.",
   },
@@ -1787,6 +1888,7 @@ const enemyTemplates = {
     atkMin: 3,
     atkMax: 6,
     xpReward: 40,
+    isUndead: true,
     description:
       "Half-rotted plate armor hangs from a frame of desiccated sinew and bone. In one hand it clutches a cracked crystal lantern that burns with a cold, steady glow; the other drags a notched halberd that scrapes sparks from the stone. Where its eyes should be, two pinpricks of lantern-light burn in patient, hateful circles.",
   },
@@ -1866,6 +1968,7 @@ function createEnemyInstance(enemyId) {
     atkMax: tmpl.atkMax,
     xpReward: tmpl.xpReward,
     description: tmpl.description,
+    isUndead: !!tmpl.isUndead,
   };
 }
 
@@ -1992,10 +2095,20 @@ function enemyTurn(blocking = false) {
     gameState.player.hp -= enemyDmg;
 
     if (gameState.player.hp <= 0) {
-      gameState.player.hp = 0;
-      updateStatusBar();
-      handlePlayerDeath();
-      return;
+      // Check for shrine blessing (combat only)
+      if (gameState.flags && gameState.flags.shrineBlessingActive) {
+        gameState.flags.shrineBlessingActive = false;
+        gameState.player.hp = 1;
+        updateStatusBar();
+        logSystem(
+          "For a heartbeat everything goes white-hot. When the world snaps back into place, you’re still on your feet—barely. The crystal flame’s blessing gutters out inside you."
+        );
+      } else {
+        gameState.player.hp = 0;
+        updateStatusBar();
+        handlePlayerDeath();
+        return;
+      }
     }
 
     updateStatusBar();
@@ -2032,6 +2145,18 @@ function handleAttack() {
   let dmg = roll(1 + weaponAtk, 4 + weaponAtk);
   if (isCrit) {
     dmg = dmg * 2 + 1;
+  }
+
+  // Flame-Touched Charm: light burst on crits
+  const hasCharm = gameState.inventory.some(
+    (item) => item && item.id === "flame-touched-charm"
+  );
+  if (isCrit && hasCharm) {
+    const bonus = enemy.isUndead ? 3 : 2;
+    dmg += bonus;
+    logSystem(
+      "The Flame-Touched Charm at your throat flares, pouring a lance of pale fire down your arm and into the strike."
+    );
   }
 
   enemy.hp -= dmg;
