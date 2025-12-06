@@ -490,9 +490,9 @@ upper_cistern_walk: {
 cistern_platform: {
   name: "Dawnspire – Cistern Platform",
   description: [
-    "A lower stone platform clings to the cistern’s inner wall, closer to the black water.",
-    "The air is colder here, damp enough to feel like fingers against your skin.",
-    "Above, the upper walk is a thin line of stone and dripping darkness.",
+    "A flat stone platform sits almost at water level, slick with condensation.",
+    "Corroded pipes run along the wall here, feeding into a cramped bank of hand-valves and rattling joints.",
+    "To the north, an iron filtration grate breathes a slow current. To the south, a low crawlspace dips into foul, dark water.",
   ].join(" "),
 },
 
@@ -503,6 +503,14 @@ sludge_channel: {
     "A cramped side channel where the cistern’s runoff collects into slow-moving sludge.",
     "The stone is stained dark and greasy, and the smell is rot mixed with minerals.",
     "The path narrows until it feels like the Dawnspire is trying to close you in.",
+  ].join(" "),
+},
+  filtration_grate: {
+  name: "Dawnspire – Filtration Grate",
+  description: [
+    "An iron grate blocks a narrow passage where the cistern’s water once filtered onward.",
+    "Mineral crust and drowned weeds cling to the bars. Behind it, you can hear water shifting through stone like something trying to get out.",
+    "A spill of old mechanism housings sits nearby—dead wheels, dead chains, and a channel that looks safer when the water runs lower.",
   ].join(" "),
 },
 };
@@ -551,10 +559,12 @@ const exitsByLocation = {
     "Obvious exits: west/back – crawl back through the tight passage to the Armory of Dust.",
   upper_cistern_walk:
   "Obvious exits: up/west – to the watch balcony; down – stairs to a lower cistern platform; east/forward – a cracked ledge into a sludge channel.",
-  cistern_platform:
-  "Obvious exits: up – back to the upper cistern walk.",
-  sludge_channel:
-  "Obvious exits: west/back – back to the upper cistern walk.",
+ cistern_platform:
+  "Obvious exits: up – back to the upper cistern walk; north – to a filtration grate; south – a water-crawl into the sludge channel.",
+sludge_channel:
+  "Obvious exits: west – back to the upper cistern walk; north/back – a water-crawl back to the cistern platform.",
+filtration_grate:
+  "Obvious exits: south/back – to the cistern platform.",
 };
 
 function printExitsForLocation(id) {
@@ -625,6 +635,11 @@ function handleTrapDeath(trapKey) {
       case "cistern_slip":
   lines = [
     "Your foot skates on wet stone. You hit the edge wrong, go weightless, and then the world becomes impact and water-dark cold.",
+  ];
+  break;
+      case "cistern_pipe_burst":
+  lines = [
+    "The pipe bursts at point-blank range. Foul water slams into your face and throat. You choke, stumble, and the world goes dim behind a wet ringing.",
   ];
   break;
     default:
@@ -828,6 +843,87 @@ function maybeGrantBarracksLoot() {
     "You recover a few Torn Journal Pages, a shriveled ration wrapped in oilcloth, and a small stoppered vial of pale liquid."
   );
   logSystem("You gain: Torn Journal Pages, Travel Ration, Low-grade Healing Draught.");
+}
+function maybeGrantCisternValveLoot() {
+  if (gameState.flags.cisternValveLootGranted) return;
+  if (!gameState.flags.cisternWaterLowered) return;
+
+  gameState.flags.cisternValveLootGranted = true;
+
+  const coinCount = roll(1, 3);
+  for (let i = 0; i < coinCount; i++) {
+    gameState.inventory.push({
+      id: "dawnspire-coin",
+      name: "Dawnspire Coin",
+      type: "coin",
+    });
+  }
+
+  // Small util loot (optional but nice)
+  const bandage = {
+    id: "dirty-bandage",
+    name: "Dirty Bandage",
+    type: "consumable",
+    heal: 4,
+  };
+  gameState.inventory.push(bandage);
+
+  logSystem(
+    "As the water draws back, something clinks against stone. A few tarnished coins and a damp strip of bandage emerge from a crack at the platform’s edge."
+  );
+  logSystem(`You gain: Dawnspire Coins (${coinCount}), Dirty Bandage.`);
+}
+
+function runCisternValveAdjust() {
+  if (gameState.combat.inCombat) {
+    logSystem("You can't wrestle ancient valves while something is trying to kill you.");
+    return;
+  }
+
+  logSystem(
+    "You set both hands on a corroded valve wheel. It resists at first—then shudders and turns with a gritty screech."
+  );
+
+  // Pipe-burst trap (one-time)
+  if (!gameState.flags.cisternValveBurstDone) {
+    const burst = roll(1, 100) <= 25; // 25% chance
+    if (burst) {
+      gameState.flags.cisternValveBurstDone = true;
+
+      const dmg = roll(1, 2); // HP chip
+      const p = gameState.player;
+
+      logSystem(
+        "You over-rotate. Metal shrieks. A joint pops—and a pipe bursts, blasting you with foul, pressurized water and rust."
+      );
+
+      p.hp -= dmg;
+      if (p.hp <= 0) {
+        p.hp = 0;
+        updateStatusBar();
+        handleTrapDeath("cistern_pipe_burst");
+        return;
+      }
+
+      updateStatusBar();
+      logSystem(`It stings like acid in cuts. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`);
+      return;
+    }
+  }
+
+  if (gameState.flags.cisternWaterLowered) {
+    logSystem(
+      "The valves are already set as far as they’ll go without breaking something else. The waterline stays slightly lower."
+    );
+    return;
+  }
+
+  gameState.flags.cisternWaterLowered = true;
+  logSystem(
+    "With a reluctant groan, the plumbing answers. The water level drops a little—just enough to expose slick stone, safer footing, and a few things that were hidden under the surface."
+  );
+
+  maybeGrantCisternValveLoot();
 }
 
 // helper: Watch Balcony trap
@@ -1579,6 +1675,15 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
 // Mirror adjustment in room 9
 function handleAdjust(rawArgs) {
   const arg = normalizeWord(rawArgs);
+if (gameState.location === "cistern_platform") {
+  const a = normalizeWord(rawArgs);
+  if (a.includes("valve") || a.includes("valves") || a.includes("pipe") || a.includes("pipes")) {
+    runCisternValveAdjust();
+    return;
+  }
+  logSystem("Adjust what? (Try: 'adjust valves')");
+  return;
+}
 
   if (gameState.location !== "mirror_gallery") {
     logSystem(
@@ -1767,7 +1872,17 @@ function describeLocation() {
   if (gameState.location === "cracked_landing") {
     maybeGrantLanternBadge();
   }
+if (gameState.location === "cistern_platform") {
+  if (!gameState.flags.cisternWaterLowered) {
+    logSystem("The valves look functional—barely. Turning them might lower the waterline. (Try: 'adjust valves')");
+  } else {
+    logSystem("The water sits a little lower now. The platform feels less eager to kill you for standing on it.");
+  }
+}
 
+if (gameState.location === "filtration_grate") {
+  logSystem("The grate’s bars are cold enough to sting. Whatever used to move through here still wants to move.");
+}
   // vestibule loot
   if (
     gameState.location === "rat_gnawed_vestibule" &&
@@ -3040,11 +3155,52 @@ if (loc === "cistern_platform") {
     describeLocation();
     return;
   }
+
+  if (direction === "north" || direction === "forward") {
+    if (!gameState.flags.cisternWaterLowered) {
+      logSystem(
+        "The filtration grate draws a stubborn current. The passage beyond looks doable—if the water ran just a little lower. (Try: 'adjust valves')"
+      );
+      return;
+    }
+    gameState.location = "filtration_grate";
+    logSystem(
+      "With the waterline lowered, you edge toward the filtration grate and slip into the narrow space beside it."
+    );
+    describeLocation();
+    return;
+  }
+
+  if (direction === "south") {
+    if (!gameState.flags.cisternWaterLowered) {
+      logSystem(
+        "The southern crawlspace is submerged. You force yourself into the foul water and swim by feel, lungs burning."
+      );
+      const dmg = roll(1, 3);
+      gameState.player.hp -= dmg;
+      if (gameState.player.hp <= 0) {
+        gameState.player.hp = 0;
+        updateStatusBar();
+        handleTrapDeath("cistern_slip"); // reuse your water-death tone, or make a new one if you want
+        return;
+      }
+      updateStatusBar();
+      logSystem(`You scrape through blind and coughing. (${dmg} damage) HP: ${gameState.player.hp}/${gameState.player.maxHp}.`);
+    } else {
+      logSystem(
+        "With the water a little lower, you duck into the southern crawlspace and worm through wet stone without needing to swim it."
+      );
+    }
+
+    gameState.location = "sludge_channel";
+    describeLocation();
+    return;
+  }
 }
 
 // Room 20 – Sludge Channel
 if (loc === "sludge_channel") {
-  if (direction === "west" || direction === "back") {
+  if (direction === "west") {
     gameState.location = "upper_cistern_walk";
     logSystem(
       "You retreat from the sludge channel, easing back onto the upper cistern walkway where the drip never stops."
@@ -3052,8 +3208,25 @@ if (loc === "sludge_channel") {
     describeLocation();
     return;
   }
-}
 
+  if (direction === "north" || direction === "back") {
+    gameState.location = "cistern_platform";
+    logSystem(
+      "You crawl back toward the waterline platform, dragging yourself out of the worst of the sludge."
+    );
+    describeLocation();
+    return;
+  }
+}
+// Room 21 – Filtration Grate
+if (loc === "filtration_grate") {
+  if (direction === "south" || direction === "back") {
+    gameState.location = "cistern_platform";
+    logSystem("You back away from the filtration grate and return to the cistern platform.");
+    describeLocation();
+    return;
+  }
+}
 
   logSystem("You can't go that way.");
 }
