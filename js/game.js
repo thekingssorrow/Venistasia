@@ -3651,6 +3651,20 @@ function handleGo(direction) {
       return;
     }
   }
+// Room 17 – Stale Provision Cellar
+if (loc === "stale_provision_cellar") {
+  if (direction === "south" || direction === "back") {
+    setLocation("lantern_muster_hall");
+    logSystem(
+      "You pick your way back through the low passage, leaving the damp cellar and its sour rot behind."
+    );
+    describeLocation();
+    return;
+  }
+
+  logSystem("You can't go that way.");
+  return;
+}
 
   // Room 23 – Impossible Shopfront
   if (loc === "impossible_shopfront") {
