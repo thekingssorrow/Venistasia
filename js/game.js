@@ -24,6 +24,10 @@ const gameState = {
     { id: "ration", name: "Travel Ration", type: "ration" },
   ],
   location: "village_square",
+
+  // ✅ NEW: track where you came from
+  lastLocation: null,
+
   flags: {
     // filled as you play
   },
@@ -34,6 +38,7 @@ const gameState = {
     intent: null, // what the enemy is winding up to do
   },
 };
+
 
 // =========================
 // Utility: player ID
@@ -643,6 +648,12 @@ function activateBentLightGate() {
     logSystem("Something answers the awakening light.");
     gameState.combat.previousLocation = "gate_bent_light_back";
     startCombat("warden_of_refractions");
+  }
+}
+function setLocation(next) {
+  if (gameState.location !== next) {
+    gameState.lastLocation = gameState.location;
+    gameState.location = next;
   }
 }
 // helper: landing loot
@@ -2206,13 +2217,15 @@ if (gameState.location === "filtration_grate") {
     }
   }
 
-  // Shard Niche
-  if (gameState.location === "shard_niche" && !gameState.combat.inCombat) {
+// Shard Niche
+if (gameState.location === "shard_niche") {
+  if (!gameState.combat.inCombat) {
     maybeGrantShardNicheShard();
 
-    const hasIncoming =
-      !!gameState.flags.flickerShardAligned && !!gameState.flags.mirrorBeamToNiche;
-    const shardSeated = !!gameState.flags.deepNodeShardAligned;
+    const hasIncoming = Boolean(
+      gameState.flags.flickerShardAligned && gameState.flags.mirrorBeamToNiche
+    );
+    const shardSeated = Boolean(gameState.flags.deepNodeShardAligned);
 
     if (!hasIncoming && !shardSeated) {
       logSystem(
@@ -2226,28 +2239,31 @@ if (gameState.location === "filtration_grate") {
       logSystem(
         "A faint beam from the gallery sneaks in along the west wall, grazing the empty socket without quite catching."
       );
-    } else if (hasIncoming && shardSeated) {
+    } else {
       logSystem(
         "Light threads into the seated shard and splits along its scars: one thin beam knifes back toward the mirrors, the other dives through the stone toward the heavy door to the south."
       );
     }
-    if (gameState.location === "cistern_platform") {
-  logSystem(
-    "The water is close enough to hear it breathe—slow, heavy, and indifferent."
-  );
+  }
 }
 
+// Cistern Platform (move OUTSIDE shard_niche)
+if (gameState.location === "cistern_platform") {
+  logSystem("The water is close enough to hear it breathe—slow, heavy, and indifferent.");
+}
+
+// Sludge Channel (combine checks; trigger combat first if desired)
 if (gameState.location === "sludge_channel") {
+  if (!gameState.combat.inCombat) {
+    startSludgeChannelFight();
+    if (gameState.combat.inCombat) return; // stops further narration this tick
+  }
+
   logSystem(
     "Every surface here looks like it’s been touched too many times by something that should have stayed buried."
   );
 }
-if (gameState.location === "sludge_channel" && !gameState.combat.inCombat) {
-  startSludgeChannelFight();
-  if (gameState.combat.inCombat) return;
-}
 
-  }
 
   // Door of Failed Light – status
   if (gameState.location === "door_failed_light") {
@@ -2715,6 +2731,14 @@ function enemyTurn(blocking = false) {
     enemyDmg = Math.max(0, enemyDmg - 1);
   }
 
+  // Prism-etched Ring: minor protection vs caster enemies (apply BEFORE damage lands)
+  const hasPrismRing = gameState.inventory.some(
+    (it) => it && it.id === "prism-etched-ring"
+  );
+  if (hasPrismRing && enemyType === "caster" && enemyDmg > 0) {
+    enemyDmg = Math.max(0, enemyDmg - 1);
+  }
+
   const enemyBucket = enemyCrit
     ? combatFlavor.enemy.crit[enemyType] || combatFlavor.enemy.crit.beast
     : combatFlavor.enemy.normal[enemyType] || combatFlavor.enemy.normal.beast;
@@ -2722,19 +2746,14 @@ function enemyTurn(blocking = false) {
   const enemyLine = pickLine(enemyBucket).replace("{name}", enemy.name);
 
   if (enemyDmg > 0) {
+    // Now the logged number matches the actual HP loss
     if (blocking) {
       logSystem(`${enemyLine} (${enemyDmg} damage makes it through your guard.)`);
     } else {
       logSystem(`${enemyLine} (${enemyDmg} damage)`);
     }
 
-// Prism-etched Ring: minor protection vs caster enemies (apply BEFORE damage lands)
-const hasPrismRing = gameState.inventory.some((it) => it && it.id === "prism-etched-ring");
-if (hasPrismRing && enemyType === "caster" && enemyDmg > 0) {
-  enemyDmg = Math.max(0, enemyDmg - 1);
-}
-
-gameState.player.hp -= enemyDmg;
+    gameState.player.hp -= enemyDmg;
 
     if (gameState.player.hp <= 0) {
       // Check for shrine blessing (combat only)
@@ -2993,11 +3012,10 @@ function handleGo(direction) {
 
   // village <-> forest
   if (loc === "village_square" && direction === "north") {
-    gameState.location = "dark_forest_edge";
+    setLocation("dark_forest_edge");
     logSystem("You walk north, leaving the safety of Briar's Edge behind...");
     describeLocation();
 
-    // Only grant this travel XP once
     if (!gameState.flags.villageToForestXp) {
       gameState.flags.villageToForestXp = true;
       gainXp(5);
@@ -3006,7 +3024,7 @@ function handleGo(direction) {
   }
 
   if (loc === "dark_forest_edge" && direction === "south") {
-    gameState.location = "village_square";
+    setLocation("village_square");
     logSystem("You walk back south, returning to the village square.");
     describeLocation();
     return;
@@ -3014,9 +3032,10 @@ function handleGo(direction) {
 
   // forest -> surface ring
   if (loc === "dark_forest_edge" && direction === "north") {
+    // capture origin for this scripted fight explicitly (keep your logic)
     const fromLocation = gameState.location;
 
-    gameState.location = "dungeon_entrance";
+    setLocation("dungeon_entrance");
     logSystem(
       "You follow the path to the quake-torn clearing. The broken stone ring looms ahead..."
     );
@@ -3036,7 +3055,7 @@ function handleGo(direction) {
       reportStairsCollapsed();
       return;
     }
-    gameState.location = "dark_forest_edge";
+    setLocation("dark_forest_edge");
     logSystem("You climb back up out of the broken ring and return to the forest edge.");
     describeLocation();
     return;
@@ -3048,7 +3067,7 @@ function handleGo(direction) {
       reportStairsCollapsed();
       return;
     }
-    gameState.location = "broken_ring_descent";
+    setLocation("broken_ring_descent");
     logSystem("You step onto the worn stone steps and begin the descent into the Dawnspire.");
     describeLocation();
     return;
@@ -3060,7 +3079,7 @@ function handleGo(direction) {
       reportStairsCollapsed();
       return;
     }
-    gameState.location = "dungeon_entrance";
+    setLocation("dungeon_entrance");
     logSystem("You climb back toward the broken ring, each step heavier than the last.");
     describeLocation();
     return;
@@ -3068,7 +3087,7 @@ function handleGo(direction) {
 
   // Room 1 -> Room 2
   if (loc === "broken_ring_descent" && direction === "down") {
-    gameState.location = "cracked_landing";
+    setLocation("cracked_landing");
     logSystem("You descend further until the stairwell opens into a small, fractured ledge.");
     describeLocation();
     return;
@@ -3081,7 +3100,7 @@ function handleGo(direction) {
         reportStairsCollapsed();
         return;
       } else {
-        gameState.location = "broken_ring_descent";
+        setLocation("broken_ring_descent");
         logSystem("You climb back up the spiral toward the faint memory of light above.");
         describeLocation();
         return;
@@ -3091,7 +3110,7 @@ function handleGo(direction) {
     if (direction === "down" || direction === "forward") {
       const firstTimeLeavingDeeper = !stairsCollapsed;
 
-      gameState.location = "collapsed_stairwell";
+      setLocation("collapsed_stairwell");
 
       if (firstTimeLeavingDeeper) {
         gameState.flags.stairsCollapsed = true;
@@ -3110,7 +3129,7 @@ function handleGo(direction) {
   // Room 3
   if (loc === "collapsed_stairwell") {
     if (direction === "up") {
-      gameState.location = "cracked_landing";
+      setLocation("cracked_landing");
       logSystem(
         "You climb back up to the cracked landing, dust sifting down from the ruined stair above."
       );
@@ -3122,7 +3141,7 @@ function handleGo(direction) {
       const alive = runCollapsedStairTrap();
       if (!alive) return;
 
-      gameState.location = "rat_gnawed_vestibule";
+      setLocation("rat_gnawed_vestibule");
       logSystem(
         "Shaking the last of the dust from your shoulders, you push deeper down the warped stair into the gnawed stone ahead."
       );
@@ -3139,14 +3158,14 @@ function handleGo(direction) {
   // Room 4
   if (loc === "rat_gnawed_vestibule") {
     if (direction === "west" || direction === "back") {
-      gameState.location = "collapsed_stairwell";
+      setLocation("collapsed_stairwell");
       logSystem("You edge back toward the twisted stair, leaving the chewed tunnels behind.");
       describeLocation();
       return;
     }
 
     if (direction === "east") {
-      gameState.location = "gnawed_storeroom";
+      setLocation("gnawed_storeroom");
       logSystem("You push through a low, tooth-scored arch into a cramped side chamber.");
       const alive = runGnawedStoreroomTrap();
       if (!alive) return;
@@ -3155,7 +3174,7 @@ function handleGo(direction) {
     }
 
     if (direction === "north") {
-      gameState.location = "outer_hall_lanterns";
+      setLocation("outer_hall_lanterns");
       logSystem(
         "You follow a tunnel that climbs and straightens, the gnawed stone giving way to a long hall of dead lantern brackets."
       );
@@ -3184,7 +3203,7 @@ function handleGo(direction) {
   // Room 5
   if (loc === "gnawed_storeroom") {
     if (direction === "west" || direction === "back") {
-      gameState.location = "rat_gnawed_vestibule";
+      setLocation("rat_gnawed_vestibule");
       logSystem("You pick your way back through the low arch, leaving the bone-littered storeroom behind.");
       describeLocation();
       return;
@@ -3194,7 +3213,7 @@ function handleGo(direction) {
   // Room 6
   if (loc === "outer_hall_lanterns") {
     if (direction === "south") {
-      gameState.location = "rat_gnawed_vestibule";
+      setLocation("rat_gnawed_vestibule");
       logSystem(
         "You retrace your steps, letting the dead lanterns fade behind as you slip back toward the gnawed vestibule."
       );
@@ -3203,7 +3222,7 @@ function handleGo(direction) {
     }
 
     if (direction === "east") {
-      gameState.location = "flicker_node";
+      setLocation("flicker_node");
       logSystem(
         "You follow the faint sense of tension in the stone until the hall cinches down around a single intact lantern."
       );
@@ -3212,7 +3231,7 @@ function handleGo(direction) {
     }
 
     if (direction === "north") {
-      gameState.location = "door_failed_light";
+      setLocation("door_failed_light");
       logSystem(
         "You move north until the hall ends in a heavy stone door carved with a fractured sunburst and three dead crystal sockets."
       );
@@ -3224,7 +3243,7 @@ function handleGo(direction) {
   // Room 7
   if (loc === "flicker_node") {
     if (direction === "west" || direction === "back") {
-      gameState.location = "outer_hall_lanterns";
+      setLocation("outer_hall_lanterns");
       logSystem(
         "You back out of the cramped junction, letting the single lantern slip from view as the longer hall opens again."
       );
@@ -3233,7 +3252,7 @@ function handleGo(direction) {
     }
 
     if (direction === "north") {
-      gameState.location = "mirror_gallery";
+      setLocation("mirror_gallery");
       logSystem(
         "You move north, following where the lantern’s cracked mirror panel points. The stone opens into a hall lined with tall, damaged mirrors."
       );
@@ -3245,7 +3264,7 @@ function handleGo(direction) {
   // Room 8
   if (loc === "door_failed_light") {
     if (direction === "south" || direction === "back") {
-      gameState.location = "outer_hall_lanterns";
+      setLocation("outer_hall_lanterns");
       logSystem(
         "You step back from the carved sunburst, letting the weight of the sealed door fall behind you."
       );
@@ -3259,32 +3278,32 @@ function handleGo(direction) {
       const beam10 = !!gameState.flags.deepNodeShardAligned;
       const lit = (beam7 ? 1 : 0) + (beam9 ? 1 : 0) + (beam10 ? 1 : 0);
 
- if (lit === 0) {
-  logSystem(
-    "You press your weight against the stone. It doesn't so much as shiver. With all three sockets blind, there's nothing here for the door to listen to."
-  );
-} else if (lit === 1) {
-  logSystem(
-    "As you strain against the door, one socket gives off the faintest warmth. Lines in the stone glow dull red before fading. Not enough."
-  );
-} else if (lit === 2) {
-  logSystem(
-    "Two sockets flare weakly, light crawling along carved channels. Something shifts deep within—and then locks again. The third socket stays dead."
-  );
-} else {
-  logSystem("All three sockets blaze with buried light. The sunburst’s rays sharpen—then the door exhales.");
-  logSystem("Stone grinds softly aside, revealing a taller chamber beyond where light fractures overhead.");
-  gameState.location = "gate_bent_light_back";
-  describeLocation();
-}
-return;
+      if (lit === 0) {
+        logSystem(
+          "You press your weight against the stone. It doesn't so much as shiver. With all three sockets blind, there's nothing here for the door to listen to."
+        );
+      } else if (lit === 1) {
+        logSystem(
+          "As you strain against the door, one socket gives off the faintest warmth. Lines in the stone glow dull red before fading. Not enough."
+        );
+      } else if (lit === 2) {
+        logSystem(
+          "Two sockets flare weakly, light crawling along carved channels. Something shifts deep within—and then locks again. The third socket stays dead."
+        );
+      } else {
+        logSystem("All three sockets blaze with buried light. The sunburst’s rays sharpen—then the door exhales.");
+        logSystem("Stone grinds softly aside, revealing a taller chamber beyond where light fractures overhead.");
+        setLocation("gate_bent_light_back");
+        describeLocation();
+      }
+      return;
     }
   }
 
   // Room 9
   if (loc === "mirror_gallery") {
     if (direction === "south" || direction === "back") {
-      gameState.location = "flicker_node";
+      setLocation("flicker_node");
       logSystem(
         "You step back out of the broken reflections and return to the tight junction where the beam begins."
       );
@@ -3293,7 +3312,7 @@ return;
     }
 
     if (direction === "east") {
-      gameState.location = "shard_niche";
+      setLocation("shard_niche");
       logSystem(
         "You follow the eastward corridor as it tightens, stone smoothing under your fingertips until it spills you into a small circular niche around a single pedestal."
       );
@@ -3305,7 +3324,7 @@ return;
   // Room 10
   if (loc === "shard_niche") {
     if (direction === "west" || direction === "back") {
-      gameState.location = "mirror_gallery";
+      setLocation("mirror_gallery");
       logSystem(
         "You leave the little circle of stone and its waiting pedestal behind, slipping back toward the hall of mirrors."
       );
@@ -3314,7 +3333,7 @@ return;
     }
 
     if (direction === "north") {
-      gameState.location = "fallen_guard_post";
+      setLocation("fallen_guard_post");
       logSystem(
         "You take the short northern passage into a low room that still smells faintly of drill and duty."
       );
@@ -3326,7 +3345,7 @@ return;
   // Room 11
   if (loc === "fallen_guard_post") {
     if (direction === "south" || direction === "back") {
-      gameState.location = "shard_niche";
+      setLocation("shard_niche");
       logSystem(
         "You step away from the overturned table and the hanging bell, slipping back toward the shard-lit niche."
       );
@@ -3335,7 +3354,7 @@ return;
     }
 
     if (direction === "east") {
-      gameState.location = "broken_barracks";
+      setLocation("broken_barracks");
       logSystem(
         "You pick your way past the scattered spears and push through a narrow doorway into a longer chamber lined with ruined bunks."
       );
@@ -3347,7 +3366,7 @@ return;
   // Room 12
   if (loc === "broken_barracks") {
     if (direction === "west" || direction === "back") {
-      gameState.location = "fallen_guard_post";
+      setLocation("fallen_guard_post");
       logSystem(
         "You leave the broken bunks behind and step back into the cramped guard post and its cracked bell."
       );
@@ -3356,7 +3375,7 @@ return;
     }
 
     if (direction === "north") {
-      gameState.location = "lantern_muster_hall";
+      setLocation("lantern_muster_hall");
       logSystem(
         "You move past the last line of ruined bunks into a broader chamber hung with tattered banners."
       );
@@ -3368,7 +3387,7 @@ return;
   // Room 13
   if (loc === "lantern_muster_hall") {
     if (direction === "south" || direction === "back") {
-      gameState.location = "broken_barracks";
+      setLocation("broken_barracks");
       logSystem(
         "You step away from the cracked floor-map and faded banners, returning to the broken barracks."
       );
@@ -3377,23 +3396,25 @@ return;
     }
 
     if (direction === "east") {
-      gameState.location = "armory_of_dust";
+      setLocation("armory_of_dust");
       logSystem(
         "You push through a squat doorway flanked by empty weapon racks into a lower, dust-choked chamber of rust and ruin."
       );
       describeLocation();
       return;
     }
+
     if (direction === "west") {
-      gameState.location = "stale_provision_cellar";
+      setLocation("stale_provision_cellar");
       logSystem(
         "You slip through a low side passage. The air turns cool and damp as the stone opens into a ruined provision cellar."
       );
       describeLocation();
       return;
     }
+
     if (direction === "north") {
-      gameState.location = "watch_balcony";
+      setLocation("watch_balcony");
       logSystem(
         "You climb a narrow stair that hugs the wall, emerging onto a stone balcony that hangs over a gulf of darkness."
       );
@@ -3405,7 +3426,7 @@ return;
   // Room 14 – Armory of Dust
   if (loc === "armory_of_dust") {
     if (direction === "west" || direction === "back") {
-      gameState.location = "lantern_muster_hall";
+      setLocation("lantern_muster_hall");
       logSystem(
         "You leave the rust-thick air of the armory behind and step back into the banner-hung muster hall."
       );
@@ -3421,7 +3442,7 @@ return;
         return;
       }
 
-      gameState.location = "hidden_shrine_flame";
+      setLocation("hidden_shrine_flame");
       logSystem(
         "You drop to hands and knees and squeeze through the low gap between collapsed racks, stone scraping your shoulders until the world opens just enough to stand again."
       );
@@ -3433,7 +3454,7 @@ return;
   // Room 15 – Watch Balcony
   if (loc === "watch_balcony") {
     if (direction === "south" || direction === "back") {
-      gameState.location = "lantern_muster_hall";
+      setLocation("lantern_muster_hall");
       logSystem(
         "You retreat from the cracked parapet and take the stair back down into the muster hall."
       );
@@ -3441,25 +3462,24 @@ return;
       return;
     }
 
-   if (direction === "east" || direction === "down" || direction === "forward") {
-  gameState.location = "upper_cistern_walk";
-  logSystem(
-    "You take the narrow stair that spirals down along the chasm wall, each step damp and slick, until it spills you onto a walkway above the cistern."
-  );
+    if (direction === "east" || direction === "down" || direction === "forward") {
+      setLocation("upper_cistern_walk");
+      logSystem(
+        "You take the narrow stair that spirals down along the chasm wall, each step damp and slick, until it spills you onto a walkway above the cistern."
+      );
 
-  // Trap can dump you to Room 19
-  const stayed = runUpperCisternSlipTrap();
-  if (!stayed) return;
+      const stayed = runUpperCisternSlipTrap();
+      if (!stayed) return;
 
-  describeLocation();
-  return;
-}
+      describeLocation();
+      return;
+    }
   }
 
   // Room 16 – Hidden Shrine to the Flame
   if (loc === "hidden_shrine_flame") {
     if (direction === "west" || direction === "back") {
-      gameState.location = "armory_of_dust";
+      setLocation("armory_of_dust");
       logSystem(
         "You duck back into the tight crawlspace, dragging yourself through grit and old ash until the broader shape of the armory opens around you again."
       );
@@ -3468,178 +3488,185 @@ return;
     }
   }
 
-// Room 18 – Upper Cistern Walk
-if (loc === "upper_cistern_walk") {
-  if (direction === "west" || direction === "up" || direction === "back") {
-    gameState.location = "watch_balcony";
-    logSystem(
-      "You edge back along the wet stone walkway and climb the narrow stair, returning to the balcony above the hollow."
-    );
-    describeLocation();
-    return;
-  }
-
-  if (direction === "down") {
-    gameState.location = "cistern_platform";
-    logSystem(
-      "You take the dripping stairs down, stone slick underfoot, until you reach a lower platform near the waterline."
-    );
-    describeLocation();
-    return;
-  }
-
-  if (direction === "east" || direction === "forward") {
-    gameState.location = "sludge_channel";
-    logSystem(
-      "You follow a cracked ledge along the cistern wall, squeezing into a narrow channel where runoff thickens into sludge."
-    );
-    describeLocation();
-    return;
-  }
-}
-// Room 19 – Cistern Platform
-if (loc === "cistern_platform") {
-  if (direction === "up" || direction === "back") {
-    gameState.location = "upper_cistern_walk";
-    logSystem(
-      "You climb back up from the waterline, returning to the narrow upper walkway above the reservoir."
-    );
-    describeLocation();
-    return;
-  }
-
-  if (direction === "north" || direction === "forward") {
-    if (!gameState.flags.cisternWaterLowered) {
+  // Room 18 – Upper Cistern Walk
+  if (loc === "upper_cistern_walk") {
+    if (direction === "west" || direction === "up" || direction === "back") {
+      setLocation("watch_balcony");
       logSystem(
-        "The filtration grate draws a stubborn current. The passage beyond looks doable—if the water ran just a little lower. (Try: 'adjust valves')"
+        "You edge back along the wet stone walkway and climb the narrow stair, returning to the balcony above the hollow."
       );
+      describeLocation();
       return;
     }
-    gameState.location = "filtration_grate";
-    logSystem(
-      "With the waterline lowered, you edge toward the filtration grate and slip into the narrow space beside it."
-    );
-    describeLocation();
-    return;
+
+    if (direction === "down") {
+      setLocation("cistern_platform");
+      logSystem(
+        "You take the dripping stairs down, stone slick underfoot, until you reach a lower platform near the waterline."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east" || direction === "forward") {
+      setLocation("sludge_channel");
+      logSystem(
+        "You follow a cracked ledge along the cistern wall, squeezing into a narrow channel where runoff thickens into sludge."
+      );
+      describeLocation();
+      return;
+    }
   }
 
-  if (direction === "south") {
-    if (!gameState.flags.cisternWaterLowered) {
+  // Room 19 – Cistern Platform
+  if (loc === "cistern_platform") {
+    if (direction === "up" || direction === "back") {
+      setLocation("upper_cistern_walk");
       logSystem(
-        "The southern crawlspace is submerged. You force yourself into the foul water and swim by feel, lungs burning."
+        "You climb back up from the waterline, returning to the narrow upper walkway above the reservoir."
       );
-      const dmg = roll(1, 3);
-      gameState.player.hp -= dmg;
-      if (gameState.player.hp <= 0) {
-        gameState.player.hp = 0;
-        updateStatusBar();
-        handleTrapDeath("cistern_slip"); // reuse your water-death tone, or make a new one if you want
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north" || direction === "forward") {
+      if (!gameState.flags.cisternWaterLowered) {
+        logSystem(
+          "The filtration grate draws a stubborn current. The passage beyond looks doable—if the water ran just a little lower. (Try: 'adjust valves')"
+        );
         return;
       }
-      updateStatusBar();
-      logSystem(`You scrape through blind and coughing. (${dmg} damage) HP: ${gameState.player.hp}/${gameState.player.maxHp}.`);
-    } else {
+      setLocation("filtration_grate");
       logSystem(
-        "With the water a little lower, you duck into the southern crawlspace and worm through wet stone without needing to swim it."
+        "With the waterline lowered, you edge toward the filtration grate and slip into the narrow space beside it."
       );
-    }
-
-    gameState.location = "sludge_channel";
-    describeLocation();
-    return;
-  }
-}
-
-// Room 20 – Sludge Channel
-if (loc === "sludge_channel") {
-  if (direction === "north" || direction === "back") {
-    gameState.location = "cistern_platform";
-    logSystem(
-      "You drag yourself back toward the waterline platform, hauling free of the worst of the sludge."
-    );
-    describeLocation();
-    return;
-  }
-
-  if (direction === "east") {
-    gameState.location = "gate_bent_light_back";
-    logSystem(
-      "You follow the channel’s tighter cut until the stink thins and the stonework turns deliberate—carved for something that wanted light to behave."
-    );
-    describeLocation();
-    return;
-  }
-}
-
-// Room 21 – Filtration Grate
-if (loc === "filtration_grate") {
-  if (direction === "south" || direction === "back") {
-    gameState.location = "cistern_platform";
-    logSystem("You back away from the filtration grate and return to the cistern platform.");
-    describeLocation();
-    return;
-  }
-  if (direction === "north" || direction === "forward") {
-  if (!gameState.flags.filtrationGrateCleared) {
-    logSystem("The grate still chokes the way. You’d need to clear it first. (Try: 'clear grate')");
-    return;
-  }
-  gameState.location = "impossible_shopfront";
-  logSystem("You squeeze through the broken opening behind the grate—and the stonework changes shape around you.");
-  describeLocation();
-    if (gameState.location === "impossible_shopfront" && !gameState.combat.inCombat) {
-  printShop();
-}
-
-  return;
-}
-}
-// Room 22 – Gate of Bent Light
-if (loc === "gate_bent_light_back") {
-  if (direction === "west" || direction === "back") {
-    gameState.location = "sludge_channel";
-    logSystem("You retreat from the refracted chamber and return to the sludge-cut stone.");
-    describeLocation();
-    return;
-  }
-
-  if (direction === "south") {
-    gameState.location = "door_failed_light";
-    logSystem("You move back beneath the fractured sunburst, where the old halls wait.");
-    describeLocation();
-    return;
-  }
-
-  if (direction === "down" || direction === "forward") {
-    if (!gameState.flags.bentLightGateActivated) {
-      logSystem("The stairwell is sealed behind dead stone. It wants light—converged, not merely carried.");
+      describeLocation();
       return;
     }
-    if (!gameState.flags.wardenOfRefractionsDefeated) {
-      logSystem("The steps shimmer—then hesitate. Something still *claims* this threshold.");
+
+    if (direction === "south") {
+      if (!gameState.flags.cisternWaterLowered) {
+        logSystem(
+          "The southern crawlspace is submerged. You force yourself into the foul water and swim by feel, lungs burning."
+        );
+        const dmg = roll(1, 3);
+        gameState.player.hp -= dmg;
+        if (gameState.player.hp <= 0) {
+          gameState.player.hp = 0;
+          updateStatusBar();
+          handleTrapDeath("cistern_slip");
+          return;
+        }
+        updateStatusBar();
+        logSystem(
+          `You scrape through blind and coughing. (${dmg} damage) HP: ${gameState.player.hp}/${gameState.player.maxHp}.`
+        );
+      } else {
+        logSystem(
+          "With the water a little lower, you duck into the southern crawlspace and worm through wet stone without needing to swim it."
+        );
+      }
+
+      setLocation("sludge_channel");
+      describeLocation();
       return;
     }
-    gameState.location = "floor2_stairwell";
-    logSystem("You step onto the glass-like stairs and descend into Floor 2.");
-    describeLocation();
-    return;
   }
-}
-// Room 23 – Impossible Shopfront
-if (loc === "impossible_shopfront") {
-  if (direction === "south" || direction === "back") {
-    gameState.location = "filtration_grate";
-    logSystem("You step back through the opening. The air turns wet and mineral again.");
-    describeLocation();
-    return;
-  }
-  logSystem("The shopfront doesn’t offer a normal exit that way.");
-  return;
-}
 
+  // Room 20 – Sludge Channel
+  if (loc === "sludge_channel") {
+    if (direction === "north" || direction === "back") {
+      setLocation("cistern_platform");
+      logSystem(
+        "You drag yourself back toward the waterline platform, hauling free of the worst of the sludge."
+      );
+      describeLocation();
+      return;
+    }
+
+    if (direction === "east") {
+      setLocation("gate_bent_light_back");
+      logSystem(
+        "You follow the channel’s tighter cut until the stink thins and the stonework turns deliberate—carved for something that wanted light to behave."
+      );
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 21 – Filtration Grate
+  if (loc === "filtration_grate") {
+    if (direction === "south" || direction === "back") {
+      setLocation("cistern_platform");
+      logSystem("You back away from the filtration grate and return to the cistern platform.");
+      describeLocation();
+      return;
+    }
+
+    if (direction === "north" || direction === "forward") {
+      if (!gameState.flags.filtrationGrateCleared) {
+        logSystem("The grate still chokes the way. You’d need to clear it first. (Try: 'clear grate')");
+        return;
+      }
+      setLocation("impossible_shopfront");
+      logSystem("You squeeze through the broken opening behind the grate—and the stonework changes shape around you.");
+      describeLocation();
+
+      if (gameState.location === "impossible_shopfront" && !gameState.combat.inCombat) {
+        printShop();
+      }
+
+      return;
+    }
+  }
+
+  // Room 22 – Gate of Bent Light
+  if (loc === "gate_bent_light_back") {
+    if (direction === "west" || direction === "back") {
+      setLocation("sludge_channel");
+      logSystem("You retreat from the refracted chamber and return to the sludge-cut stone.");
+      describeLocation();
+      return;
+    }
+
+    if (direction === "south") {
+      setLocation("door_failed_light");
+      logSystem("You move back beneath the fractured sunburst, where the old halls wait.");
+      describeLocation();
+      return;
+    }
+
+    if (direction === "down" || direction === "forward") {
+      if (!gameState.flags.bentLightGateActivated) {
+        logSystem("The stairwell is sealed behind dead stone. It wants light—converged, not merely carried.");
+        return;
+      }
+      if (!gameState.flags.wardenOfRefractionsDefeated) {
+        logSystem("The steps shimmer—then hesitate. Something still *claims* this threshold.");
+        return;
+      }
+      setLocation("floor2_stairwell");
+      logSystem("You step onto the glass-like stairs and descend into Floor 2.");
+      describeLocation();
+      return;
+    }
+  }
+
+  // Room 23 – Impossible Shopfront
+  if (loc === "impossible_shopfront") {
+    if (direction === "south" || direction === "back") {
+      setLocation("filtration_grate");
+      logSystem("You step back through the opening. The air turns wet and mineral again.");
+      describeLocation();
+      return;
+    }
+    logSystem("The shopfront doesn’t offer a normal exit that way.");
+    return;
+  }
 
   logSystem("You can't go that way.");
 }
+
 
 // =========================
 // Help / name / reset
@@ -3745,103 +3772,119 @@ function handleReset() {
   scheduleSave();
 }
 // =========================
-// Coin + shop helpers
+// Shop + Coins (drop-in)
 // =========================
 
-function countCoins() {
-  return gameState.inventory.reduce((n, it) => n + (it?.id === "dawnspire-coin" ? 1 : 0), 0);
+function inShop() {
+  return gameState.location === "impossible_shopfront";
 }
 
-function removeCoins(amount) {
-  let remaining = amount;
-  for (let i = gameState.inventory.length - 1; i >= 0 && remaining > 0; i--) {
-    if (gameState.inventory[i]?.id === "dawnspire-coin") {
-      gameState.inventory.splice(i, 1);
-      remaining--;
-    }
-  }
-  return remaining === 0;
+// Coins are represented by inventory entries with id "dawnspire-coin"
+function countCoins() {
+  return gameState.inventory.reduce((n, it) => {
+    if (!it) return n;
+    if (it.id === "dawnspire-coin" || it.type === "coin") return n + 1;
+    return n;
+  }, 0);
 }
 
 function addCoins(amount) {
-  for (let i = 0; i < amount; i++) {
-    gameState.inventory.push({ id: "dawnspire-coin", name: "Dawnspire Coin", type: "coin" });
+  const n = Math.max(0, Number(amount) || 0);
+  for (let i = 0; i < n; i++) {
+    gameState.inventory.push({
+      id: "dawnspire-coin",
+      name: "Dawnspire Coin",
+      type: "coin",
+    });
   }
 }
 
-function inShop() {
-  return gameState.location === "impossible_shopfront" && !gameState.combat.inCombat;
+// remove N coins from inventory; returns true if successful
+function spendCoins(amount) {
+  let need = Math.max(0, Number(amount) || 0);
+  if (countCoins() < need) return false;
+
+  for (let i = gameState.inventory.length - 1; i >= 0 && need > 0; i--) {
+    const it = gameState.inventory[i];
+    if (!it) continue;
+    if (it.id === "dawnspire-coin" || it.type === "coin") {
+      gameState.inventory.splice(i, 1);
+      need--;
+    }
+  }
+  return need === 0;
 }
 
-// Harsh pricing by design
+// --- What the shop sells ---
 const shopStock = [
-  { id: "ration", name: "Travel Ration", type: "ration", price: 4 },
-  { id: "dirty-bandage", name: "Dirty Bandage", type: "consumable", heal: 4, price: 3 },
-  { id: "low-healing-draught", name: "Low-grade Healing Draught", type: "consumable", heal: 8, price: 7 },
-  { id: "purifying-draught", name: "Purifying Draught", type: "consumable", heal: 10, price: 10 },
-  // Optional “basic weapon” option (still harsh):
-  { id: "iron-sword", name: "Serviceable Iron Sword", type: "weapon", atk: 2, price: 18 },
+  {
+    id: "ration",
+    name: "Travel Ration",
+    price: 5,
+    desc: "Tasteless, reliable. Restores you to full HP when you 'rest'.",
+    makeItem: () => ({ id: "ration", name: "Travel Ration", type: "ration" }),
+  },
+  {
+    id: "dirty-bandage",
+    name: "Dirty Bandage",
+    price: 3,
+    desc: "Stops the worst bleeding. Heals a little when you 'use bandage'.",
+    makeItem: () => ({ id: "dirty-bandage", name: "Dirty Bandage", type: "consumable", heal: 4 }),
+  },
+  {
+    id: "low-healing-draught",
+    name: "Low-grade Healing Draught",
+    price: 8,
+    desc: "Bitter warmth. Heals 8 when you 'use draught'.",
+    makeItem: () => ({ id: "low-healing-draught", name: "Low-grade Healing Draught", type: "consumable", heal: 8 }),
+  },
+  {
+    id: "purifying-draught",
+    name: "Purifying Draught",
+    price: 12,
+    desc: "Cold clarity through the veins. Heals 10 when you 'use purifying'.",
+    makeItem: () => ({ id: "purifying-draught", name: "Purifying Draught", type: "consumable", heal: 10 }),
+  },
+
+  // Optional: simple upgrade bait (doesn't auto-equip)
+  {
+    id: "iron-sword",
+    name: "Serviceable Iron Sword",
+    price: 20,
+    desc: "Honest steel. ATK 2.",
+    makeItem: () => ({ id: "iron-sword", name: "Serviceable Iron Sword", type: "weapon", atk: 2 }),
+  },
 ];
 
-// What the shopkeeper will buy (everything else is “not interested”)
-function getSellValue(item) {
-  if (!item) return 0;
-  // never buy coins, keys, or puzzle shards
-  if (item.type === "coin" || item.type === "key") return 0;
-
-  // treasure hooks you already created:
-  if (item.id === "silvered-pendant") return 12; // harsh vs value 35
-  if (item.id === "strange-rune-stone") return 15;
-
-  // weapons / shields: small return
-  if (item.type === "weapon") return Math.max(1, 4 + (item.atk || 0));
-  if (item.type === "shield") return 4;
-
-  // consumables: low return
-  if (item.type === "ration") return 1;
-  if (item.type === "consumable") return 2;
-
-  // lore, charms, rings: “no sale”
-  if (item.type === "lore" || item.type === "charm" || item.type === "ring") return 0;
-
-  return 0;
-}
-
+// Show shop list
 function printShop() {
-  const coins = countCoins();
-  const lines = shopStock.map((it, i) => {
-    const extras =
-      it.type === "weapon" ? ` (ATK ${it.atk})` :
-      it.heal ? ` (Heals ${it.heal})` : "";
-    return `${i + 1}. ${it.name}${extras} — ${it.price} coin${it.price === 1 ? "" : "s"}`;
-  });
+  if (!inShop()) {
+    logSystem("There is no shop here.");
+    return;
+  }
+
+  const lines = [];
+  for (let i = 0; i < shopStock.length; i++) {
+    const s = shopStock[i];
+    lines.push(`${i + 1}. ${s.name} — ${s.price} coins`);
+  }
 
   logSystem(
     [
-      "A well-lit counter. A polite presence behind it. No warmth in the kindness.",
-      `You have: ${coins} coin${coins === 1 ? "" : "s"}.`,
+      "A presence behind the warped glass watches you without blinking.",
+      `Your coins: ${countCoins()}`,
       "",
-      "For sale:",
-      ...lines,
+      "Items for sale:",
+      lines.join("\n"),
       "",
-      "Commands: 'buy <number|name>', 'sell <number|name>', 'shop' to list again.",
+      "Type 'buy <number>' or 'buy <name>'.",
+      "Type 'sell <number>' or 'sell <name>' to sell valuables.",
     ].join("\n")
   );
 }
 
-function shopkeeperDeflect(raw) {
-  const q = normalizeWord(raw);
-
-  if (q.includes("escape") || q.includes("leave") || q.includes("up")) {
-    logSystem("The shopkeeper smiles politely. “Up is closed to you now. Down is all that’s left.”");
-    return;
-  }
-  if (q.includes("how") && (q.includes("floor") || q.includes("move") || q.includes("here"))) {
-    logSystem("“I am where I must be. You are where you chose to walk.”");
-    return;
-  }
-
-  logSystem("“I only do shop.”");
+function handleShop() {
+  printShop();
 }
 
 function handleBuy(rawArgs) {
@@ -3854,124 +3897,76 @@ function handleBuy(rawArgs) {
   const arg = normalizeWord(argRaw);
 
   if (!arg) {
-    printShop();
+    logSystem("Buy what? (Try: 'shop' then 'buy 1')");
     return;
   }
 
-  let chosen = null;
-
-  // numeric buy
-  const num = Number.parseInt(arg, 10);
-  if (!Number.isNaN(num) && String(num) === arg) {
-    chosen = shopStock[num - 1] || null;
-  } else {
-    chosen = shopStock.find((it) => normalizeWord(it.name).includes(arg)) || null;
-  }
-
-  if (!chosen) {
-    logSystem("The shopkeeper tilts their head. “I don’t stock that.”");
-    return;
-  }
-
-  const coins = countCoins();
-  if (coins < chosen.price) {
-    logSystem("The shopkeeper’s smile doesn’t change. “No credit. No charity.”");
-    logSystem(`You need ${chosen.price} coins. You have ${coins}.`);
-    return;
-  }
-
-  removeCoins(chosen.price);
-
-  // Add a fresh copy of the item (don’t push the stock object directly)
-  const bought = { ...chosen };
-  delete bought.price;
-  gameState.inventory.push(bought);
-
-  logSystem(`You pay ${chosen.price} coin${chosen.price === 1 ? "" : "s"}.`);
-  logSystem(`You gain: ${bought.name}.`);
-
-  // Auto-equip nice feeling for weapons/shields
-  if (bought.type === "weapon") {
-    ensureEquipment();
-    gameState.player.equipment.weaponId = bought.id;
-    logSystem("The shopkeeper says nothing as you test the balance. It feels… real.");
-    updateStatusBar();
-  }
-}
-
-function handleSell(rawArgs) {
-  if (!inShop()) {
-    logSystem("There is nowhere here to sell anything.");
-    return;
-  }
-
-  const argRaw = String(rawArgs || "").trim();
-  const arg = normalizeWord(argRaw);
-
-  if (!arg) {
-    logSystem("Sell what? (Try: 'inventory' then 'sell 2' — or 'sell pendant')");
-    return;
-  }
-
-  // Don’t sell by grouped number? You *can*, but it’s safer to interpret using the same grouping as inventory.
-  const grouped = getGroupedInventory();
-
-  let item = null;
-  let itemIndex = -1;
+  let picked = null;
 
   const num = Number.parseInt(arg, 10);
   if (!Number.isNaN(num) && String(num) === arg) {
-    const entry = grouped[num - 1];
-    if (!entry) {
-      logSystem("That number doesn't match anything you're carrying.");
-      return;
-    }
-    // sell ONE copy
-    const matchId = entry.item?.id;
-    itemIndex = gameState.inventory.findIndex((it) => it?.id === matchId);
-    item = itemIndex >= 0 ? gameState.inventory[itemIndex] : null;
+    picked = shopStock[num - 1] || null;
   } else {
-    itemIndex = gameState.inventory.findIndex((it) =>
-      normalizeWord(it?.name || "").includes(arg)
-    );
-    item = itemIndex >= 0 ? gameState.inventory[itemIndex] : null;
+    picked =
+      shopStock.find((s) => normalizeWord(s.name).includes(arg) || normalizeWord(s.id).includes(arg)) ||
+      null;
   }
 
-  if (!item) {
-    logSystem("You don’t seem to be carrying anything like that.");
+  if (!picked) {
+    logSystem("The shop doesn’t seem to offer that.");
     return;
   }
 
-  const value = getSellValue(item);
-  if (value <= 0) {
-    logSystem("The shopkeeper looks at it once. “Not interested.”");
+  if (!spendCoins(picked.price)) {
+    logSystem(`You count your coins twice. You need ${picked.price}, and you don’t have them.`);
     return;
   }
 
-  // Prevent selling currently equipped weapon/shield without consequence
-  ensureEquipment();
-  if (item.id === gameState.player.equipment.weaponId) {
-    gameState.player.equipment.weaponId = null;
-  }
-  if (item.id === gameState.player.equipment.shieldId) {
-    gameState.player.equipment.shieldId = null;
-  }
+  const item = picked.makeItem();
+  gameState.inventory.push(item);
 
-  gameState.inventory.splice(itemIndex, 1);
-  addCoins(value);
-
-  logSystem(`The shopkeeper accepts the ${item.name} without expression.`);
-  logSystem(`You gain: ${value} coin${value === 1 ? "" : "s"}.`);
+  logSystem(`The glass breathes open just long enough to accept payment and return a ${item.name}.`);
+  logSystem(`Coins left: ${countCoins()}.`);
   updateStatusBar();
 }
 
-function handleShop(rawArgs) {
-  if (!inShop()) {
-    logSystem("There is no shop here—only stone and bad choices.");
+// Selling logic: prefer explicit value, otherwise allow only certain types
+function getSellValue(item) {
+  if (!item) return 0;
+
+  // Never sell coins
+  if (item.id === "dawnspire-coin" || item.type === "coin") return 0;
+
+  // Explicit value wins
+  if (typeof item.value === "number" && item.value > 0) return Math.floor(item.value);
+
+  // Sensible defaults (tweak freely)
+  if (item.type === "treasure") return 15;
+  if (item.type === "lore") return 2;
+  if (item.type === "key") return 0;      // shards/keys shouldn't be sellable
+  if (item.type === "weapon") return 6;   // lowball
+  if (item.type === "shield") return 4;
+  if (item.type === "consumable") return 1;
+  if (item.type === "ration") return 1;
+
+  return 0;
+}
+
+function shopkeeperDeflect(raw) {
+  const q = String(raw || "").trim();
+  if (!q) {
+    logSystem("The presence waits, patient and unworried.");
     return;
   }
-  printShop();
+
+  const lines = [
+    "The shopkeeper doesn’t answer questions. It only prices them.",
+    "A finger taps the glass once—soft as a threat, polite as a promise.",
+    "The letters on the inside sign rearrange themselves into something you *almost* understand. You look away first.",
+  ];
+  logSystem(pickLine(lines));
 }
+
 
 // =========================
 // Command parser
