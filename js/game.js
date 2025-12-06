@@ -25,7 +25,6 @@ const gameState = {
   ],
   location: "village_square",
 
-  // ✅ NEW: track where you came from
   lastLocation: null,
 
   flags: {
@@ -68,7 +67,7 @@ function pickLine(arr) {
 }
 
 // =========================
-// Output helpers (preserve \n even if CSS doesn't)
+// Output helpers
 // =========================
 
 function appendOutputBlock(text, className, prefixFirstLine = "") {
@@ -643,7 +642,6 @@ function activateBentLightGate() {
   logSystem("The gate shudders. Stone doesn’t open—stone *changes*.");
   logSystem("It melts into shimmering, glass-like steps that descend into darkness.");
 
-  // Optional guardian spawns on first activation
   if (!gameState.flags.wardenOfRefractionsDefeated) {
     logSystem("Something answers the awakening light.");
     gameState.combat.previousLocation = "gate_bent_light_back";
@@ -847,7 +845,6 @@ function isLongWeaponEquipped() {
   const w = getEquippedWeapon();
   if (!w) return false;
   const n = (w.name || "").toLowerCase();
-  // Your current long weapon is the Old Guard Spear; this leaves room for future polearms.
   return w.id === "old-guard-spear" || n.includes("spear") || n.includes("halberd") || n.includes("pike");
 }
 
@@ -859,7 +856,7 @@ function maybeGrantFiltrationGrateLoot() {
     id: "silvered-pendant",
     name: "Silvered Pendant",
     type: "treasure",
-    value: 35, // “decent sell value” hook for later
+    value: 35, 
   };
 
   const draught = {
@@ -1071,7 +1068,7 @@ function maybeGrantCisternValveLoot() {
     });
   }
 
-  // Small util loot (optional but nice)
+  // Small util loot 
   const bandage = {
     id: "dirty-bandage",
     name: "Dirty Bandage",
@@ -2247,7 +2244,7 @@ if (gameState.location === "shard_niche") {
   }
 }
 
-// Cistern Platform (move OUTSIDE shard_niche)
+// Cistern Platform 
 if (gameState.location === "cistern_platform") {
   logSystem("The water is close enough to hear it breathe—slow, heavy, and indifferent.");
 }
@@ -2404,7 +2401,7 @@ if (gameState.location === "gate_bent_light_back" && !gameState.combat.inCombat)
   }
 // Upper Cistern Walk – trap + possible leech + note
 if (gameState.location === "upper_cistern_walk" && !gameState.combat.inCombat) {
-  // Encounter first (so we don't print exits during combat start)
+  // Encounter first 
   maybeStartUpperCisternLeech();
   if (gameState.combat.inCombat) return;
 
@@ -3032,7 +3029,6 @@ function handleGo(direction) {
 
   // forest -> surface ring
   if (loc === "dark_forest_edge" && direction === "north") {
-    // capture origin for this scripted fight explicitly (keep your logic)
     const fromLocation = gameState.location;
 
     setLocation("dungeon_entrance");
@@ -3793,7 +3789,7 @@ function handleReset() {
 function inShop() {
   return gameState.location === "impossible_shopfront";
 }
-// --- Inventory view (groups duplicates like your "Dawnspire Coin (11)" line) ---
+// --- Inventory view ---
 function buildInventoryView() {
   const out = [];
   const seen = new Map(); // key -> index in out
