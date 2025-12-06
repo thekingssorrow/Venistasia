@@ -505,6 +505,15 @@ sludge_channel: {
     "The path narrows until it feels like the Dawnspire is trying to close you in.",
   ].join(" "),
 },
+    // Room 22 – Gate of Bent Light (Back Route)
+  gate_bent_light_back: {
+    name: "Dawnspire – Gate of Bent Light (Back Route)",
+    description: [
+      "A narrow side-chamber opens here, carved tighter and smoother than the cistern masonry.",
+      "A stone gate stands half-sunk into the wall, its surface etched with curves that look like sunlight bent through water.",
+      "The air shimmers faintly as if remembering brightness it no longer has.",
+    ].join(" "),
+  },
   filtration_grate: {
   name: "Dawnspire – Filtration Grate",
   description: [
@@ -550,7 +559,7 @@ const exitsByLocation = {
   lantern_muster_hall:
     "Obvious exits: south/back – to the broken barracks; east – into an old armory; north – up to a watch balcony over the chasm; west – into a cool, damp provision cellar.",
   armory_of_dust:
-    "Obvious exits: west/back – to the Lantern Muster Hall; east – a low, shadowed gap in the racks (if you’ve found it).",
+    "Obvious exits: west/back – to the Lantern Muster Hall",
   stale_provision_cellar:
     "Obvious exits: south – back to the Lantern Muster Hall.",
   watch_balcony:
@@ -562,9 +571,11 @@ const exitsByLocation = {
  cistern_platform:
   "Obvious exits: up – back to the upper cistern walk; north – to a filtration grate; south – a water-crawl into the sludge channel.",
 sludge_channel:
-  "Obvious exits: west – back to the upper cistern walk; north/back – a water-crawl back to the cistern platform.",
+  "Obvious exits: north/back – a crawl back to the cistern platform; east – a side entrance marked by bent-light carvings.",
 filtration_grate:
   "Obvious exits: south/back – to the cistern platform.",
+  gate_bent_light_back:
+  "Obvious exits: west/back – back into the sludge channel.",
 };
 
 function printExitsForLocation(id) {
@@ -595,6 +606,50 @@ function maybeGrantLanternBadge() {
     "Half-buried in the rubble, your fingers close on something cold and worked: a small badge stamped with a stylized lantern."
   );
   logSystem("You take the Lantern Knight’s Badge.");
+}
+
+function startSludgeChannelFight() {
+  if (gameState.combat.inCombat) return;
+  if (gameState.flags.sludgeLurkerCleared) return;
+  if (gameState.flags.sludgeLurkerFightStarted) return;
+
+  gameState.flags.sludgeLurkerFightStarted = true;
+
+  logSystem(
+    "The sludge stirs where it shouldn’t. Something thick and quiet gathers itself out of the flow."
+  );
+  gameState.combat.previousLocation = "cistern_platform";
+  startCombat("sludge_lurker");
+}
+
+function maybeGrantSludgeSatchelLoot() {
+  if (gameState.flags.sludgeSatchelLootTaken) return;
+  if (!gameState.flags.sludgeLurkerCleared) return;
+
+  gameState.flags.sludgeSatchelLootTaken = true;
+
+  const coinCount = roll(2, 6);
+  for (let i = 0; i < coinCount; i++) {
+    gameState.inventory.push({
+      id: "dawnspire-coin",
+      name: "Dawnspire Coin",
+      type: "coin",
+    });
+  }
+
+  const foundRune = roll(1, 100) <= 45; // "maybe"
+  if (foundRune) {
+    gameState.inventory.push({
+      id: "strange-rune-stone",
+      name: "Strange Rune-Stone",
+      type: "treasure",
+    });
+  }
+
+  logSystem(
+    "Half-submerged in the sludge, you find a waterlogged satchel. The leather gives a wet sigh as you pull it free."
+  );
+  logSystem(`You gain: Dawnspire Coins (${coinCount})${foundRune ? ", Strange Rune-Stone." : "."}`);
 }
 
 // ===== Trap death helper =====
@@ -1805,6 +1860,15 @@ function handleSearch() {
   }
 
   const loc = gameState.location;
+  
+  if (loc === "sludge_channel") {
+    if (!gameState.flags.sludgeLurkerCleared) {
+      logSystem("You probe the muck with your hands. Something in it feels like it’s probing back.");
+      return;
+    }
+    maybeGrantSludgeSatchelLoot();
+    return;
+  }
 
   if (loc === "broken_barracks") {
     runBarracksSearchTrapAndLoot();
@@ -1980,6 +2044,10 @@ if (gameState.location === "sludge_channel") {
   logSystem(
     "Every surface here looks like it’s been touched too many times by something that should have stayed buried."
   );
+}
+if (gameState.location === "sludge_channel" && !gameState.combat.inCombat) {
+  startSludgeChannelFight();
+  if (gameState.combat.inCombat) return;
 }
 
   }
@@ -2216,6 +2284,19 @@ const enemyTemplates = {
   description:
     "A bloated, pallid leech drops from above with a wet slap, its ringed mouth opening and closing as it tastes the air for warmth.",
 },
+    sludge_lurker: {
+    id: "sludge_lurker",
+    name: "Sludge Lurker",
+    type: "beast",
+    maxHp: 14,
+    atkMin: 2,
+    atkMax: 5,
+    xpReward: 26,
+    resistNormal: true,
+    description:
+      "A gelatinous mass swells up out of the foul runoff like sap given hunger. It quivers, then surges—slow, certain, and hard to truly hurt.",
+  },
+
 };
 
 const enemyIntents = {
@@ -2281,7 +2362,7 @@ function telegraphEnemyIntent(enemy, intent) {
 function createEnemyInstance(enemyId) {
   const tmpl = enemyTemplates[enemyId];
   if (!tmpl) return null;
-  return {
+   return {
     id: tmpl.id,
     name: tmpl.name,
     type: tmpl.type || "beast",
@@ -2292,6 +2373,7 @@ function createEnemyInstance(enemyId) {
     xpReward: tmpl.xpReward,
     description: tmpl.description,
     isUndead: !!tmpl.isUndead,
+    resistNormal: !!tmpl.resistNormal,
   };
 }
 
@@ -2476,6 +2558,17 @@ function handleAttack() {
       "The Flame-Touched Charm at your throat flares, pouring a lance of pale fire down your arm and into the strike."
     );
   }
+  // Sludge Lurker resistance: halves damage from normal (non-enchanted) hits
+  if (enemy.resistNormal) {
+    const enchantedStrike = isCrit && hasCharm; // charm flare makes the crit "not normal"
+    if (!enchantedStrike) {
+      const before = dmg;
+      dmg = Math.max(1, Math.floor(dmg / 2));
+      if (dmg < before) {
+        logSystem("Your blow sinks into the ooze and comes out duller—most of it is absorbed.");
+      }
+    }
+  }
 
   enemy.hp -= dmg;
 
@@ -2494,6 +2587,11 @@ function handleAttack() {
     logSystem(pickLine(deathLines));
     const xp = enemy.xpReward || 0;
     if (xp > 0) gainXp(xp);
+    
+    if (gameState.location === "sludge_channel" && enemy.id === "sludge_lurker") {
+      gameState.flags.sludgeLurkerCleared = true;
+      maybeGrantSludgeSatchelLoot();
+    }
 
     // Multi-rat fight in Vestibule
     if (
@@ -3200,24 +3298,25 @@ if (loc === "cistern_platform") {
 
 // Room 20 – Sludge Channel
 if (loc === "sludge_channel") {
-  if (direction === "west") {
-    gameState.location = "upper_cistern_walk";
+  if (direction === "north" || direction === "back") {
+    gameState.location = "cistern_platform";
     logSystem(
-      "You retreat from the sludge channel, easing back onto the upper cistern walkway where the drip never stops."
+      "You drag yourself back toward the waterline platform, hauling free of the worst of the sludge."
     );
     describeLocation();
     return;
   }
 
-  if (direction === "north" || direction === "back") {
-    gameState.location = "cistern_platform";
+  if (direction === "east") {
+    gameState.location = "gate_bent_light_back";
     logSystem(
-      "You crawl back toward the waterline platform, dragging yourself out of the worst of the sludge."
+      "You follow the channel’s tighter cut until the stink thins and the stonework turns deliberate—carved for something that wanted light to behave."
     );
     describeLocation();
     return;
   }
 }
+
 // Room 21 – Filtration Grate
 if (loc === "filtration_grate") {
   if (direction === "south" || direction === "back") {
@@ -3226,6 +3325,18 @@ if (loc === "filtration_grate") {
     describeLocation();
     return;
   }
+}
+// Room 22 – Gate of Bent Light (Back Route)
+if (loc === "gate_bent_light_back") {
+  if (direction === "west" || direction === "back") {
+    gameState.location = "sludge_channel";
+    logSystem("You retreat from the bent-light gate and return to the sludge channel.");
+    describeLocation();
+    return;
+  }
+
+  logSystem("The gate doesn't offer a way forward. Not yet.");
+  return;
 }
 
   logSystem("You can't go that way.");
