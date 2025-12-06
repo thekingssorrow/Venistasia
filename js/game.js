@@ -506,14 +506,15 @@ sludge_channel: {
   ].join(" "),
 },
     // Room 22 – Gate of Bent Light (Back Route)
-  gate_bent_light_back: {
-    name: "Dawnspire – Gate of Bent Light (Back Route)",
-    description: [
-      "A narrow side-chamber opens here, carved tighter and smoother than the cistern masonry.",
-      "A stone gate stands half-sunk into the wall, its surface etched with curves that look like sunlight bent through water.",
-      "The air shimmers faintly as if remembering brightness it no longer has.",
-    ].join(" "),
-  },
+gate_bent_light_back: {
+  name: "Dawnspire – Gate of Bent Light",
+  description: [
+    "A tall chamber opens here, stonework smoother and more deliberate than the cistern masonry.",
+    "Faint, refracted light crisscrosses overhead in shifting lines, as if the air itself has learned to behave like glass.",
+    "At the chamber’s heart stands a massive stone gate etched with sigils meant to catch and hold converging beams.",
+    "A sealed stairwell drops away beyond it—down into Floor 2—locked behind light and old intent.",
+  ].join(" "),
+},
   filtration_grate: {
   name: "Dawnspire – Filtration Grate",
   description: [
@@ -531,7 +532,14 @@ impossible_shopfront: {
     "The air smells faintly of ink, old coins, and a promise that wants you to agree before it speaks.",
   ].join(" "),
 },
-
+floor2_stairwell: {
+  name: "Dawnspire – Floor 2 Stairwell",
+  description: [
+    "Glass-like steps descend into a deeper ring of the Dawnspire.",
+    "The air down here tastes older—less like water and more like stone that has never seen daylight.",
+    "(Floor 2 content not yet implemented.)",
+  ].join(" "),
+},
 };
 
 // Exits helper text for each location
@@ -586,8 +594,8 @@ filtration_grate:
   "Obvious exits: south/back – to the cistern platform; north/forward – behind the grate (if you can clear it).",
 impossible_shopfront:
   "Obvious exits: south/back – back through the opening to the filtration grate.",
-  gate_bent_light_back:
-  "Obvious exits: west/back – back into the sludge channel.",
+gate_bent_light_back:
+  "Obvious exits: west/back – to the sludge channel; south – to the Door of Failed Light; down – into Floor 2 (locked until the gate awakens).",
 };
 
 function printExitsForLocation(id) {
@@ -601,7 +609,42 @@ function reportStairsCollapsed() {
     "Stone and dust fill the stairwell above. Whatever daylight once lived up there is gone."
   );
 }
+function isBentLightGateSolved() {
+  return !!gameState.flags.flickerShardAligned &&
+         !!gameState.flags.mirrorShardAligned &&
+         !!gameState.flags.deepNodeShardAligned;
+}
 
+function grantPrismEtchedRing() {
+  if (gameState.flags.prismRingTaken) return;
+  gameState.flags.prismRingTaken = true;
+
+  gameState.inventory.push({
+    id: "prism-etched-ring",
+    name: "Prism-etched Ring",
+    type: "ring",
+  });
+
+  logSystem("You take: Prism-etched Ring.");
+  logSystem("It hums softly when magic moves nearby.");
+}
+
+function activateBentLightGate() {
+  if (gameState.flags.bentLightGateActivated) return;
+  gameState.flags.bentLightGateActivated = true;
+
+  logSystem("The converging beams finally find the gate’s sigils.");
+  logSystem("They ignite—thin lines of light burning bright as if the stone is remembering the sun.");
+  logSystem("The gate shudders. Stone doesn’t open—stone *changes*.");
+  logSystem("It melts into shimmering, glass-like steps that descend into darkness.");
+
+  // Optional guardian spawns on first activation
+  if (!gameState.flags.wardenOfRefractionsDefeated) {
+    logSystem("Something answers the awakening light.");
+    gameState.combat.previousLocation = "gate_bent_light_back";
+    startCombat("warden_of_refractions");
+  }
+}
 // helper: landing loot
 function maybeGrantLanternBadge() {
   if (gameState.flags.gotLanternBadge) return;
@@ -2255,6 +2298,15 @@ if (gameState.location === "sludge_channel" && !gameState.combat.inCombat) {
   ) {
     startBarracksFight();
   }
+// Gate of Bent Light: auto-activate when puzzle is solved
+if (gameState.location === "gate_bent_light_back" && !gameState.combat.inCombat) {
+  if (isBentLightGateSolved()) {
+    activateBentLightGate();
+    if (gameState.combat.inCombat) return; // boss spawned
+  } else {
+    logSystem("The gate’s sigils are cold. It feels like it’s waiting for beams to agree on a single truth.");
+  }
+}
 
   // Lantern Muster Hall – auto-start Hollow Lantern-Bearer + lore hint
   if (gameState.location === "lantern_muster_hall" && !gameState.combat.inCombat) {
@@ -2450,7 +2502,17 @@ const enemyTemplates = {
     description:
       "A gelatinous mass swells up out of the foul runoff like sap given hunger. It quivers, then surges—slow, certain, and hard to truly hurt.",
   },
-
+warden_of_refractions: {
+  id: "warden_of_refractions",
+  name: "Warden of Refractions",
+  type: "caster",
+  maxHp: 24,
+  atkMin: 3,
+  atkMax: 6,
+  xpReward: 55,
+  description:
+    "A tall, prismatic silhouette peels itself out of the crossing beams. Its body is made of fractured light trapped inside a humanoid outline, and every movement splits into afterimages that don’t quite match.",
+},
 };
 
 const enemyIntents = {
@@ -2499,6 +2561,26 @@ const enemyIntents = {
         "The {name}'s movements turn jerky and wild, weapon swinging in erratic sweeps.",
     },
   ],
+  caster: [
+  {
+    key: "needle",
+    damageMult: 1.1,
+    blockMult: 0.6,
+    tell: "The {name} gathers a thin line of light between its hands—sharp enough to cut at a distance.",
+  },
+  {
+    key: "burst",
+    damageMult: 1.6,
+    blockMult: 0.4,
+    tell: "The {name} compresses refracted beams into a pulsing knot that wants to explode outward.",
+  },
+  {
+    key: "beam",
+    damageMult: 1.3,
+    blockMult: 0.5,
+    tell: "The {name} turns slightly, aligning itself like a lens—its glow intensifies.",
+  },
+],
 };
 
 function chooseEnemyIntent(enemy) {
@@ -2647,6 +2729,11 @@ function enemyTurn(blocking = false) {
     }
 
     gameState.player.hp -= enemyDmg;
+// Prism-etched Ring: minor protection vs caster enemies
+const hasPrismRing = gameState.inventory.some((it) => it && it.id === "prism-etched-ring");
+if (hasPrismRing && enemyType === "caster" && enemyDmg > 0) {
+  enemyDmg = Math.max(0, enemyDmg - 1);
+}
 
     if (gameState.player.hp <= 0) {
       // Check for shrine blessing (combat only)
@@ -2700,7 +2787,12 @@ function handleAttack() {
   if (isCrit) {
     dmg = dmg * 2 + 1;
   }
-
+// Gate boss rewards
+if (gameState.location === "gate_bent_light_back" && enemy.id === "warden_of_refractions") {
+  gameState.flags.wardenOfRefractionsDefeated = true;
+  logSystem("The prismatic shape fractures—then collapses into harmless, fading light.");
+  grantPrismEtchedRing();
+}
   // Flame-Touched Charm: light burst on crits
   const hasCharm = gameState.inventory.some(
     (item) => item && item.id === "flame-touched-charm"
@@ -2712,6 +2804,11 @@ function handleAttack() {
       "The Flame-Touched Charm at your throat flares, pouring a lance of pale fire down your arm and into the strike."
     );
   }
+  // Prism-etched Ring: minor bonus vs caster enemies
+const hasPrismRing = gameState.inventory.some((it) => it && it.id === "prism-etched-ring");
+if (hasPrismRing && enemyType === "caster") {
+  dmg += 1;
+}
   // Sludge Lurker resistance: halves damage from normal (non-enchanted) hits
   if (enemy.resistNormal) {
     const enchantedStrike = isCrit && hasCharm; // charm flare makes the crit "not normal"
@@ -3172,10 +3269,12 @@ function handleGo(direction) {
         logSystem(
           "Two sockets flare weakly, light crawling along carved channels. Something shifts deep within—and then locks again. The third socket stays dead."
         );
-      } else {
-        logSystem(
-          "All three sockets blaze with buried light. The sunburst seems to swell, rays sharpening, but for now the door remains a promise instead of a path."
-        );
+     else {
+  logSystem("All three sockets blaze with buried light. The sunburst’s rays sharpen—then the door exhales.");
+  logSystem("Stone grinds softly aside, revealing a taller chamber beyond where light fractures overhead.");
+  gameState.location = "gate_bent_light_back";
+  describeLocation();
+}
       }
       return;
     }
@@ -3490,15 +3589,39 @@ if (loc === "filtration_grate") {
   return;
 }
 }
-// Room 22 – Gate of Bent Light (Back Route)
+// Room 22 – Gate of Bent Light
 if (loc === "gate_bent_light_back") {
   if (direction === "west" || direction === "back") {
     gameState.location = "sludge_channel";
-    logSystem("You retreat from the bent-light gate and return to the sludge channel.");
+    logSystem("You retreat from the refracted chamber and return to the sludge-cut stone.");
     describeLocation();
     return;
   }
-  if (loc === "impossible_shopfront") {
+
+  if (direction === "south") {
+    gameState.location = "door_failed_light";
+    logSystem("You move back beneath the fractured sunburst, where the old halls wait.");
+    describeLocation();
+    return;
+  }
+
+  if (direction === "down" || direction === "forward") {
+    if (!gameState.flags.bentLightGateActivated) {
+      logSystem("The stairwell is sealed behind dead stone. It wants light—converged, not merely carried.");
+      return;
+    }
+    if (!gameState.flags.wardenOfRefractionsDefeated) {
+      logSystem("The steps shimmer—then hesitate. Something still *claims* this threshold.");
+      return;
+    }
+    gameState.location = "floor2_stairwell";
+    logSystem("You step onto the glass-like stairs and descend into Floor 2.");
+    describeLocation();
+    return;
+  }
+}
+// Room 23 – Impossible Shopfront
+if (loc === "impossible_shopfront") {
   if (direction === "south" || direction === "back") {
     gameState.location = "filtration_grate";
     logSystem("You step back through the opening. The air turns wet and mineral again.");
@@ -3509,9 +3632,6 @@ if (loc === "gate_bent_light_back") {
   return;
 }
 
-  logSystem("The gate doesn't offer a way forward. Not yet.");
-  return;
-}
 
   logSystem("You can't go that way.");
 }
@@ -3636,19 +3756,17 @@ function handleCombatCommand(cmd, raw) {
       const argStr = raw.slice(4).trim();
       handleUse(argStr, { inCombat: true });
       break;
-      case "clear":
-  logSystem("Not now. Clearings are for when you're not bleeding.");
-  break;
     }
+    case "clear":
+      logSystem("Not now. Clearings are for when you're not bleeding.");
+      break;
     case "ring": {
       const argStr = raw.slice(5).trim();
       handleRing(argStr, { inCombat: true });
       break;
     }
     case "equip":
-      logSystem(
-        "You don't have time to fumble with gear while something is trying to open you up."
-      );
+      logSystem("You don't have time to fumble with gear while something is trying to open you up.");
       break;
     case "adjust":
       logSystem("You don't have the luxury of fiddling with mechanisms mid-fight.");
@@ -3670,9 +3788,7 @@ function handleCombatCommand(cmd, raw) {
       logSystem("You can't spare the attention to search right now.");
       break;
     default:
-      logSystem(
-        "In the heat of battle, that command makes no sense. Try 'attack', 'block', 'run', or 'use bandage'."
-      );
+      logSystem("In the heat of battle, that command makes no sense. Try 'attack', 'block', 'run', or 'use bandage'.");
       break;
   }
 }
