@@ -4107,13 +4107,10 @@ function handleCombatCommand(cmd, fullInput) {
 
   // ---- helpers -------------------------------------------------------------
 
-  const enemyAlive = () => enemy && typeof enemy.hp === "number" ? enemy.hp > 0 : !!enemy;
-
   const endCombatIfEnemyDead = () => {
     if (!enemy) return false;
     if (typeof enemy.hp === "number" && enemy.hp <= 0) {
       combat.inCombat = false;
-      // If you already have a helper, use it.
       if (typeof finishCombat === "function") finishCombat(true);
       else if (typeof endCombat === "function") endCombat(true);
       else logSystem(`The ${enemy.name || "enemy"} collapses.`);
@@ -4126,7 +4123,6 @@ function handleCombatCommand(cmd, fullInput) {
   const doEnemyTurnFallback = () => {
     if (!enemy || !p) return;
 
-    // Basic damage model (only used if you don't already have an enemy-turn function)
     const min = (typeof enemy.minDamage === "number") ? enemy.minDamage : 3;
     const max = (typeof enemy.maxDamage === "number") ? enemy.maxDamage : 6;
     const dmg = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -4137,8 +4133,6 @@ function handleCombatCommand(cmd, fullInput) {
     const name = enemy.name || "The enemy";
     logSystem(`${name} drives a blade across your chest. (${dmg} damage)`);
     logSystem(`Blood slicks your skin. HP: ${p.hp}/${p.maxHp}.`);
-
-    // Optional telegraph line (matches your vibe)
     logSystem(`${name} shifts its weight and draws back for a straight, killing thrust.`);
 
     if (p.hp <= 0) {
@@ -4157,25 +4151,36 @@ function handleCombatCommand(cmd, fullInput) {
     if (typeof handleEnemyTurn === "function") return handleEnemyTurn();
     if (typeof runEnemyTurn === "function") return runEnemyTurn();
 
-    // Otherwise use fallback
     doEnemyTurnFallback();
   };
 
+  // Returns { external: boolean } so we can avoid double-running enemy turns.
   const doPlayerAttack = () => {
-    // Prefer your existing combat engine if it exists
-    if (typeof playerAttack === "function") return playerAttack();
-    if (typeof handleAttack === "function") return handleAttack();
-    if (typeof attackEnemy === "function") return attackEnemy();
+    // If you already have an attack function, assume it handles the enemy response too.
+    if (typeof playerAttack === "function") {
+      playerAttack();
+      return { external: true };
+    }
+    if (typeof handleAttack === "function") {
+      handleAttack();
+      return { external: true };
+    }
+    if (typeof attackEnemy === "function") {
+      attackEnemy();
+      return { external: true };
+    }
 
-    // Minimal fallback if nothing else exists
+    // Fallback: we do ONLY player damage here; caller will run enemy turn once.
     if (!enemy || typeof enemy.hp !== "number") {
       logSystem("You swing at nothing in particular.");
-      return;
+      return { external: false };
     }
+
     const dmg = 4; // simple default
     enemy.hp = Math.max(0, enemy.hp - dmg);
     logSystem(`You strike the ${enemy.name || "enemy"} for ${dmg} damage.`);
     endCombatIfEnemyDead();
+    return { external: false };
   };
 
   // ---- command handling -----------------------------------------------------
@@ -4184,27 +4189,25 @@ function handleCombatCommand(cmd, fullInput) {
     case "help":
       if (typeof handleCombatHelp === "function") handleCombatHelp();
       else logSystem("Combat commands: attack, use <item>, inventory, run");
-      return; // help should NOT trigger enemy auto-attack
+      return;
 
     case "inventory":
     case "inv":
     case "i":
       handleInventory?.();
-      return; // viewing inventory should NOT trigger enemy auto-attack
+      return;
 
     case "use": {
       if (!argStr) {
         logSystem("Use what? (bandage, draught/potion)");
-        return; // no enemy turn on a non-action
+        return;
       }
 
-      // TRY your existing use system first
       let used = false;
+
       if (typeof handleUse === "function") {
-        // extra fields won't hurt if handleUse ignores them
         used = !!handleUse(argStr, { inCombat: true });
       } else {
-        // fallback to your explicit item functions if handleUse isn't available
         if (argStr.includes("bandage")) used = useBandage(true);
         else if (argStr.includes("draught") || argStr.includes("potion")) used = useHealingDraught(true);
         else {
@@ -4215,8 +4218,7 @@ function handleCombatCommand(cmd, fullInput) {
 
       if (!used) return;
 
-      // ✅ THE FIX:
-      // Using an item is your whole turn AND the enemy does NOT deal damage this turn.
+      // Using an item consumes your action AND prevents enemy damage this turn.
       logSystem("For a heartbeat, the pressure relents—no strike comes.");
       return;
     }
@@ -4225,11 +4227,14 @@ function handleCombatCommand(cmd, fullInput) {
     case "hit":
     case "strike":
     case "stab":
-    case "slash":
-      doPlayerAttack();
+    case "slash": {
+      const res = doPlayerAttack();
       if (!combat.inCombat) return;
-      doEnemyTurn();
+
+      // ✅ Fix: only run enemy turn here if we used the fallback attack.
+      if (!res.external) doEnemyTurn();
       return;
+    }
 
     case "run":
     case "flee":
@@ -4248,6 +4253,7 @@ function handleCombatCommand(cmd, fullInput) {
       return;
   }
 }
+
 
 function handleCommand(raw) {
   let input = String(raw || "").trim();
