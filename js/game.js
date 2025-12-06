@@ -4094,6 +4094,8 @@ function handleSell(rawArgs) {
   logSystem(`The glass drinks it up. You feel heavier by ${value} coin${value === 1 ? "" : "s"}.`);
   logSystem(`Your coins: ${countCoins()}`);
   updateStatusBar();
+    // Auto-refresh the sell menu so numbering stays correct after inventory shifts
+  handleSell("");
 }
 
 // =========================
