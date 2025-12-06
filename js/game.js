@@ -3793,16 +3793,6 @@ function handleReset() {
 function inShop() {
   return gameState.location === "impossible_shopfront";
 }
-
-// Normalize helper (use yours if you already have one)
-function normalizeWord(s) {
-  return String(s || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
 // --- Inventory view (groups duplicates like your "Dawnspire Coin (11)" line) ---
 function buildInventoryView() {
   const out = [];
@@ -4101,6 +4091,53 @@ function handleSell(rawArgs) {
 // =========================
 // Command parser
 // =========================
+function handleCombatCommand(cmd, fullInput) {
+  const parts = String(fullInput || "").trim().split(/\s+/);
+  // fullInput might be "attack" or might be the whole line; either way:
+  const argStr = parts.slice(1).join(" ").trim();
+
+  switch (cmd) {
+    case "attack":
+      handleAttack();
+      return;
+
+    case "block":
+      handleBlock();
+      return;
+
+    case "run":
+      handleRun();
+      return;
+
+    case "look":
+      handleLook(); // free action
+      return;
+
+    case "help":
+      logSystem("Combat: attack | block | run | use <item> | look");
+      return;
+
+    case "use": {
+      // Using an item should cost your turn.
+      const beforeHp = gameState.player.hp;
+      const beforeInvLen = gameState.inventory.length;
+
+      handleUse(argStr, { inCombat: true });
+
+      const usedSomething =
+        gameState.player.hp !== beforeHp || gameState.inventory.length !== beforeInvLen;
+
+      if (usedSomething && gameState.combat.inCombat) {
+        enemyTurn(false);
+      }
+      return;
+    }
+
+    default:
+      logSystem("In combat: type 'attack', 'block', 'run', or 'use <item>'.");
+      return;
+  }
+}
 
 function handleCommand(raw) {
   let input = String(raw || "").trim();
