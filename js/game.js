@@ -4091,53 +4091,80 @@ function handleSell(rawArgs) {
 // =========================
 // Command parser
 // =========================
-function handleCombatCommand(cmd, fullInput) {
-  const parts = String(fullInput || "").trim().split(/\s+/);
-  // fullInput might be "attack" or might be the whole line; either way:
-  const argStr = parts.slice(1).join(" ").trim();
-
-  switch (cmd) {
-    case "attack":
-      handleAttack();
-      return;
-
-    case "block":
-      handleBlock();
-      return;
-
-    case "run":
-      handleRun();
-      return;
-
-    case "look":
-      handleLook(); // free action
-      return;
-
-    case "help":
-      logSystem("Combat: attack | block | run | use <item> | look");
-      return;
-
-    case "use": {
-      // Using an item should cost your turn.
-      const beforeHp = gameState.player.hp;
-      const beforeInvLen = gameState.inventory.length;
-
-      handleUse(argStr, { inCombat: true });
-
-      const usedSomething =
-        gameState.player.hp !== beforeHp || gameState.inventory.length !== beforeInvLen;
-
-      if (usedSomething && gameState.combat.inCombat) {
-        enemyTurn(false);
-      }
-      return;
-    }
-
-    default:
-      logSystem("In combat: type 'attack', 'block', 'run', or 'use <item>'.");
-      return;
+function useBandage(inCombat) {
+  const idx = findItemIndexByNameFragment("bandage");
+  if (idx === -1) {
+    logSystem("You fumble for a bandage, but come up with nothing but dirty fingers.");
+    return false;
   }
+
+  const item = gameState.inventory[idx];
+  const healAmount = item.heal || 4;
+  consumeItemByIndex(idx);
+
+  const p = gameState.player;
+  const before = p.hp;
+  p.hp = Math.min(p.maxHp, p.hp + healAmount);
+  updateStatusBar();
+
+  const healed = p.hp - before;
+
+  if (healed <= 0) {
+    logSystem(
+      "You wrap the filthy cloth around already-closed wounds. It does more for your courage than your flesh."
+    );
+  } else if (inCombat) {
+    logSystem(
+      "You yank the filthy bandage tight around the worst of the bleeding, teeth clenched."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  } else {
+    logSystem(
+      "You take a moment to wrap the dirty bandage around the worst of the damage. It isn't clean, but it holds you together."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  }
+
+  return true;
 }
+
+function useHealingDraught(inCombat) {
+  const idx = findItemIndexByNameFragment("draught");
+  const idxAlt = idx === -1 ? findItemIndexByNameFragment("potion") : idx;
+
+  const useIdx = idxAlt;
+  if (useIdx === -1) {
+    logSystem("You pat yourself down for a vial, but come up empty.");
+    return false;
+  }
+
+  const item = gameState.inventory[useIdx];
+  const healAmount = item.heal || 8;
+  consumeItemByIndex(useIdx);
+
+  const p = gameState.player;
+  const before = p.hp;
+  p.hp = Math.min(p.maxHp, p.hp + healAmount);
+  updateStatusBar();
+  const healed = p.hp - before;
+
+  if (healed <= 0) {
+    logSystem("You swallow the bitter liquid, but it only calms your nerves.");
+  } else if (inCombat) {
+    logSystem(
+      "You wrench the stopper out with your teeth and gulp the draught down as fast as you dare. Heat blooms in your gut and spreads outward."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  } else {
+    logSystem(
+      "You drink the draught slowly, letting its warmth seep into the aches and bruises that never quite left."
+    );
+    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
+  }
+
+  return true;
+}
+
 
 function handleCommand(raw) {
   let input = String(raw || "").trim();
