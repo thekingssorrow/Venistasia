@@ -2728,12 +2728,13 @@ function enemyTurn(blocking = false) {
       logSystem(`${enemyLine} (${enemyDmg} damage)`);
     }
 
-    gameState.player.hp -= enemyDmg;
-// Prism-etched Ring: minor protection vs caster enemies
+// Prism-etched Ring: minor protection vs caster enemies (apply BEFORE damage lands)
 const hasPrismRing = gameState.inventory.some((it) => it && it.id === "prism-etched-ring");
 if (hasPrismRing && enemyType === "caster" && enemyDmg > 0) {
   enemyDmg = Math.max(0, enemyDmg - 1);
 }
+
+gameState.player.hp -= enemyDmg;
 
     if (gameState.player.hp <= 0) {
       // Check for shrine blessing (combat only)
@@ -2787,12 +2788,7 @@ function handleAttack() {
   if (isCrit) {
     dmg = dmg * 2 + 1;
   }
-// Gate boss rewards
-if (gameState.location === "gate_bent_light_back" && enemy.id === "warden_of_refractions") {
-  gameState.flags.wardenOfRefractionsDefeated = true;
-  logSystem("The prismatic shape fractures—then collapses into harmless, fading light.");
-  grantPrismEtchedRing();
-}
+
   // Flame-Touched Charm: light burst on crits
   const hasCharm = gameState.inventory.some(
     (item) => item && item.id === "flame-touched-charm"
@@ -2843,6 +2839,12 @@ if (hasPrismRing && enemyType === "caster") {
       gameState.flags.sludgeLurkerCleared = true;
       maybeGrantSludgeSatchelLoot();
     }
+// Gate boss rewards (on death)
+if (gameState.location === "gate_bent_light_back" && enemy.id === "warden_of_refractions") {
+  gameState.flags.wardenOfRefractionsDefeated = true;
+  logSystem("The prismatic shape fractures—then collapses into harmless, fading light.");
+  grantPrismEtchedRing();
+}
 
     // Multi-rat fight in Vestibule
     if (
@@ -3257,26 +3259,25 @@ function handleGo(direction) {
       const beam10 = !!gameState.flags.deepNodeShardAligned;
       const lit = (beam7 ? 1 : 0) + (beam9 ? 1 : 0) + (beam10 ? 1 : 0);
 
-      if (lit === 0) {
-        logSystem(
-          "You press your weight against the stone. It doesn't so much as shiver. With all three sockets blind, there's nothing here for the door to listen to."
-        );
-      } else if (lit === 1) {
-        logSystem(
-          "As you strain against the door, one socket gives off the faintest warmth. Lines in the stone glow dull red before fading. Not enough."
-        );
-      } else if (lit === 2) {
-        logSystem(
-          "Two sockets flare weakly, light crawling along carved channels. Something shifts deep within—and then locks again. The third socket stays dead."
-        );
-     else {
+ if (lit === 0) {
+  logSystem(
+    "You press your weight against the stone. It doesn't so much as shiver. With all three sockets blind, there's nothing here for the door to listen to."
+  );
+} else if (lit === 1) {
+  logSystem(
+    "As you strain against the door, one socket gives off the faintest warmth. Lines in the stone glow dull red before fading. Not enough."
+  );
+} else if (lit === 2) {
+  logSystem(
+    "Two sockets flare weakly, light crawling along carved channels. Something shifts deep within—and then locks again. The third socket stays dead."
+  );
+} else {
   logSystem("All three sockets blaze with buried light. The sunburst’s rays sharpen—then the door exhales.");
   logSystem("Stone grinds softly aside, revealing a taller chamber beyond where light fractures overhead.");
   gameState.location = "gate_bent_light_back";
   describeLocation();
 }
-      }
-      return;
+return;
     }
   }
 
@@ -3586,6 +3587,10 @@ if (loc === "filtration_grate") {
   gameState.location = "impossible_shopfront";
   logSystem("You squeeze through the broken opening behind the grate—and the stonework changes shape around you.");
   describeLocation();
+    if (gameState.location === "impossible_shopfront" && !gameState.combat.inCombat) {
+  printShop();
+}
+
   return;
 }
 }
@@ -3653,6 +3658,9 @@ function handleHelp() {
       "  block              - brace to blunt the enemy's next attack",
       "  run                - attempt to flee from combat",
       "  rest               - consume a ration to fully restore your HP",
+      "  shop               - list items for sale (only in the shop)",
+"  buy <number|name>  - purchase an item (only in the shop)",
+"  sell <number|name> - sell certain items (only in the shop)",
       "  use <item>         - use an item (e.g., 'use bandage', 'use shard', 'use draught', 'use journal')",
       "  clear <thing>       - clear an obstruction (e.g., 'clear grate')",
       "  use <number>       - use by inventory number (from 'inventory')",
@@ -3736,6 +3744,234 @@ function handleReset() {
   showIntro();
   scheduleSave();
 }
+// =========================
+// Coin + shop helpers
+// =========================
+
+function countCoins() {
+  return gameState.inventory.reduce((n, it) => n + (it?.id === "dawnspire-coin" ? 1 : 0), 0);
+}
+
+function removeCoins(amount) {
+  let remaining = amount;
+  for (let i = gameState.inventory.length - 1; i >= 0 && remaining > 0; i--) {
+    if (gameState.inventory[i]?.id === "dawnspire-coin") {
+      gameState.inventory.splice(i, 1);
+      remaining--;
+    }
+  }
+  return remaining === 0;
+}
+
+function addCoins(amount) {
+  for (let i = 0; i < amount; i++) {
+    gameState.inventory.push({ id: "dawnspire-coin", name: "Dawnspire Coin", type: "coin" });
+  }
+}
+
+function inShop() {
+  return gameState.location === "impossible_shopfront" && !gameState.combat.inCombat;
+}
+
+// Harsh pricing by design
+const shopStock = [
+  { id: "ration", name: "Travel Ration", type: "ration", price: 4 },
+  { id: "dirty-bandage", name: "Dirty Bandage", type: "consumable", heal: 4, price: 3 },
+  { id: "low-healing-draught", name: "Low-grade Healing Draught", type: "consumable", heal: 8, price: 7 },
+  { id: "purifying-draught", name: "Purifying Draught", type: "consumable", heal: 10, price: 10 },
+  // Optional “basic weapon” option (still harsh):
+  { id: "iron-sword", name: "Serviceable Iron Sword", type: "weapon", atk: 2, price: 18 },
+];
+
+// What the shopkeeper will buy (everything else is “not interested”)
+function getSellValue(item) {
+  if (!item) return 0;
+  // never buy coins, keys, or puzzle shards
+  if (item.type === "coin" || item.type === "key") return 0;
+
+  // treasure hooks you already created:
+  if (item.id === "silvered-pendant") return 12; // harsh vs value 35
+  if (item.id === "strange-rune-stone") return 15;
+
+  // weapons / shields: small return
+  if (item.type === "weapon") return Math.max(1, 4 + (item.atk || 0));
+  if (item.type === "shield") return 4;
+
+  // consumables: low return
+  if (item.type === "ration") return 1;
+  if (item.type === "consumable") return 2;
+
+  // lore, charms, rings: “no sale”
+  if (item.type === "lore" || item.type === "charm" || item.type === "ring") return 0;
+
+  return 0;
+}
+
+function printShop() {
+  const coins = countCoins();
+  const lines = shopStock.map((it, i) => {
+    const extras =
+      it.type === "weapon" ? ` (ATK ${it.atk})` :
+      it.heal ? ` (Heals ${it.heal})` : "";
+    return `${i + 1}. ${it.name}${extras} — ${it.price} coin${it.price === 1 ? "" : "s"}`;
+  });
+
+  logSystem(
+    [
+      "A well-lit counter. A polite presence behind it. No warmth in the kindness.",
+      `You have: ${coins} coin${coins === 1 ? "" : "s"}.`,
+      "",
+      "For sale:",
+      ...lines,
+      "",
+      "Commands: 'buy <number|name>', 'sell <number|name>', 'shop' to list again.",
+    ].join("\n")
+  );
+}
+
+function shopkeeperDeflect(raw) {
+  const q = normalizeWord(raw);
+
+  if (q.includes("escape") || q.includes("leave") || q.includes("up")) {
+    logSystem("The shopkeeper smiles politely. “Up is closed to you now. Down is all that’s left.”");
+    return;
+  }
+  if (q.includes("how") && (q.includes("floor") || q.includes("move") || q.includes("here"))) {
+    logSystem("“I am where I must be. You are where you chose to walk.”");
+    return;
+  }
+
+  logSystem("“I only do shop.”");
+}
+
+function handleBuy(rawArgs) {
+  if (!inShop()) {
+    logSystem("There is nowhere here to buy anything.");
+    return;
+  }
+
+  const argRaw = String(rawArgs || "").trim();
+  const arg = normalizeWord(argRaw);
+
+  if (!arg) {
+    printShop();
+    return;
+  }
+
+  let chosen = null;
+
+  // numeric buy
+  const num = Number.parseInt(arg, 10);
+  if (!Number.isNaN(num) && String(num) === arg) {
+    chosen = shopStock[num - 1] || null;
+  } else {
+    chosen = shopStock.find((it) => normalizeWord(it.name).includes(arg)) || null;
+  }
+
+  if (!chosen) {
+    logSystem("The shopkeeper tilts their head. “I don’t stock that.”");
+    return;
+  }
+
+  const coins = countCoins();
+  if (coins < chosen.price) {
+    logSystem("The shopkeeper’s smile doesn’t change. “No credit. No charity.”");
+    logSystem(`You need ${chosen.price} coins. You have ${coins}.`);
+    return;
+  }
+
+  removeCoins(chosen.price);
+
+  // Add a fresh copy of the item (don’t push the stock object directly)
+  const bought = { ...chosen };
+  delete bought.price;
+  gameState.inventory.push(bought);
+
+  logSystem(`You pay ${chosen.price} coin${chosen.price === 1 ? "" : "s"}.`);
+  logSystem(`You gain: ${bought.name}.`);
+
+  // Auto-equip nice feeling for weapons/shields
+  if (bought.type === "weapon") {
+    ensureEquipment();
+    gameState.player.equipment.weaponId = bought.id;
+    logSystem("The shopkeeper says nothing as you test the balance. It feels… real.");
+    updateStatusBar();
+  }
+}
+
+function handleSell(rawArgs) {
+  if (!inShop()) {
+    logSystem("There is nowhere here to sell anything.");
+    return;
+  }
+
+  const argRaw = String(rawArgs || "").trim();
+  const arg = normalizeWord(argRaw);
+
+  if (!arg) {
+    logSystem("Sell what? (Try: 'inventory' then 'sell 2' — or 'sell pendant')");
+    return;
+  }
+
+  // Don’t sell by grouped number? You *can*, but it’s safer to interpret using the same grouping as inventory.
+  const grouped = getGroupedInventory();
+
+  let item = null;
+  let itemIndex = -1;
+
+  const num = Number.parseInt(arg, 10);
+  if (!Number.isNaN(num) && String(num) === arg) {
+    const entry = grouped[num - 1];
+    if (!entry) {
+      logSystem("That number doesn't match anything you're carrying.");
+      return;
+    }
+    // sell ONE copy
+    const matchId = entry.item?.id;
+    itemIndex = gameState.inventory.findIndex((it) => it?.id === matchId);
+    item = itemIndex >= 0 ? gameState.inventory[itemIndex] : null;
+  } else {
+    itemIndex = gameState.inventory.findIndex((it) =>
+      normalizeWord(it?.name || "").includes(arg)
+    );
+    item = itemIndex >= 0 ? gameState.inventory[itemIndex] : null;
+  }
+
+  if (!item) {
+    logSystem("You don’t seem to be carrying anything like that.");
+    return;
+  }
+
+  const value = getSellValue(item);
+  if (value <= 0) {
+    logSystem("The shopkeeper looks at it once. “Not interested.”");
+    return;
+  }
+
+  // Prevent selling currently equipped weapon/shield without consequence
+  ensureEquipment();
+  if (item.id === gameState.player.equipment.weaponId) {
+    gameState.player.equipment.weaponId = null;
+  }
+  if (item.id === gameState.player.equipment.shieldId) {
+    gameState.player.equipment.shieldId = null;
+  }
+
+  gameState.inventory.splice(itemIndex, 1);
+  addCoins(value);
+
+  logSystem(`The shopkeeper accepts the ${item.name} without expression.`);
+  logSystem(`You gain: ${value} coin${value === 1 ? "" : "s"}.`);
+  updateStatusBar();
+}
+
+function handleShop(rawArgs) {
+  if (!inShop()) {
+    logSystem("There is no shop here—only stone and bad choices.");
+    return;
+  }
+  printShop();
+}
 
 // =========================
 // Command parser
@@ -3757,6 +3993,12 @@ function handleCombatCommand(cmd, raw) {
       handleUse(argStr, { inCombat: true });
       break;
     }
+      case "shop":
+case "buy":
+case "sell":
+  logSystem("Not now.");
+  break;
+
     case "clear":
       logSystem("Not now. Clearings are for when you're not bleeding.");
       break;
@@ -3828,6 +4070,21 @@ function handleCommand(raw) {
         handleGo(rest[0]);
       }
       break;
+      case "shop":
+  handleShop(argStr);
+  break;
+case "buy":
+  handleBuy(raw.slice(4).trim());
+  break;
+case "sell":
+  handleSell(raw.slice(5).trim());
+  break;
+case "talk":
+case "ask":
+  if (inShop()) shopkeeperDeflect(raw.slice(cmd.length + 1).trim());
+  else logSystem("No one answers.");
+  break;
+
       case "clear":
   handleClear(raw.slice(6).trim());
   break;
