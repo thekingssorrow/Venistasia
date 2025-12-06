@@ -3786,124 +3786,75 @@ function handleReset() {
   scheduleSave();
 }
 // =========================
-// Shop + Coins (drop-in)
+// Selling (drop-in)
 // =========================
 
-function inShop() {
-  return gameState.location === "impossible_shopfront";
+function getStackCount(item) {
+  if (!item) return 0;
+  if (typeof item.qty === "number") return item.qty;
+  if (typeof item.quantity === "number") return item.quantity;
+  if (typeof item.count === "number") return item.count;
+  return 1;
 }
 
-// Coins are represented by inventory entries with id "dawnspire-coin"
-function countCoins() {
-  return gameState.inventory.reduce((n, it) => {
-    if (!it) return n;
-    if (it.id === "dawnspire-coin" || it.type === "coin") return n + 1;
-    return n;
-  }, 0);
+function decStackCount(item, n = 1) {
+  if (!item) return;
+  if (typeof item.qty === "number") item.qty = Math.max(0, item.qty - n);
+  else if (typeof item.quantity === "number") item.quantity = Math.max(0, item.quantity - n);
+  else if (typeof item.count === "number") item.count = Math.max(0, item.count - n);
 }
 
-function addCoins(amount) {
-  const n = Math.max(0, Number(amount) || 0);
-  for (let i = 0; i < n; i++) {
-    gameState.inventory.push({
-      id: "dawnspire-coin",
-      name: "Dawnspire Coin",
-      type: "coin",
-    });
-  }
-}
+// Groups inventory into “sell candidates” (so numbering is stable even if you stack items)
+function listSellCandidates() {
+  const groups = [];
+  const keyToGroup = new Map();
 
-// remove N coins from inventory; returns true if successful
-function spendCoins(amount) {
-  let need = Math.max(0, Number(amount) || 0);
-  if (countCoins() < need) return false;
-
-  for (let i = gameState.inventory.length - 1; i >= 0 && need > 0; i--) {
-    const it = gameState.inventory[i];
+  for (let idx = 0; idx < gameState.inventory.length; idx++) {
+    const it = gameState.inventory[idx];
     if (!it) continue;
-    if (it.id === "dawnspire-coin" || it.type === "coin") {
-      gameState.inventory.splice(i, 1);
-      need--;
+
+    // never sell coins
+    if (it.id === "dawnspire-coin" || it.type === "coin") continue;
+
+    const key = `${it.id || ""}::${it.name || ""}`;
+    let g = keyToGroup.get(key);
+    if (!g) {
+      g = { item: it, indices: [], total: 0 };
+      keyToGroup.set(key, g);
+      groups.push(g);
     }
+
+    const stackN = getStackCount(it);
+    g.total += stackN;
+    // record this slot once; if it’s stacked, we’ll decrement stack first
+    g.indices.push(idx);
   }
-  return need === 0;
+
+  return groups;
 }
 
-// --- What the shop sells ---
-const shopStock = [
-  {
-    id: "ration",
-    name: "Travel Ration",
-    price: 5,
-    desc: "Tasteless, reliable. Restores you to full HP when you 'rest'.",
-    makeItem: () => ({ id: "ration", name: "Travel Ration", type: "ration" }),
-  },
-  {
-    id: "dirty-bandage",
-    name: "Dirty Bandage",
-    price: 3,
-    desc: "Stops the worst bleeding. Heals a little when you 'use bandage'.",
-    makeItem: () => ({ id: "dirty-bandage", name: "Dirty Bandage", type: "consumable", heal: 4 }),
-  },
-  {
-    id: "low-healing-draught",
-    name: "Low-grade Healing Draught",
-    price: 8,
-    desc: "Bitter warmth. Heals 8 when you 'use draught'.",
-    makeItem: () => ({ id: "low-healing-draught", name: "Low-grade Healing Draught", type: "consumable", heal: 8 }),
-  },
-  {
-    id: "purifying-draught",
-    name: "Purifying Draught",
-    price: 12,
-    desc: "Cold clarity through the veins. Heals 10 when you 'use purifying'.",
-    makeItem: () => ({ id: "purifying-draught", name: "Purifying Draught", type: "consumable", heal: 10 }),
-  },
+function removeOneFromGroup(group) {
+  // try to decrement a stack first
+  for (const idx of group.indices) {
+    const it = gameState.inventory[idx];
+    if (!it) continue;
 
-  // Optional: simple upgrade bait (doesn't auto-equip)
-  {
-    id: "iron-sword",
-    name: "Serviceable Iron Sword",
-    price: 20,
-    desc: "Honest steel. ATK 2.",
-    makeItem: () => ({ id: "iron-sword", name: "Serviceable Iron Sword", type: "weapon", atk: 2 }),
-  },
-];
+    const n = getStackCount(it);
+    if (n > 1) {
+      decStackCount(it, 1);
+      return true;
+    }
 
-// Show shop list
-function printShop() {
+    // single item: remove it
+    gameState.inventory.splice(idx, 1);
+    return true;
+  }
+  return false;
+}
+
+function handleSell(rawArgs) {
   if (!inShop()) {
-    logSystem("There is no shop here.");
-    return;
-  }
-
-  const lines = [];
-  for (let i = 0; i < shopStock.length; i++) {
-    const s = shopStock[i];
-    lines.push(`${i + 1}. ${s.name} — ${s.price} coins`);
-  }
-
-  logSystem(
-    [
-      "A presence behind the warped glass watches you without blinking.",
-      `Your coins: ${countCoins()}`,
-      "",
-      "Items for sale:",
-      lines.join("\n"),
-      "",
-      "Type 'buy <number>' or 'buy <name>'.",
-      "Type 'sell <number>' or 'sell <name>' to sell valuables.",
-    ].join("\n")
-  );
-}
-
-function handleShop() {
-  printShop();
-}
-
-function handleBuy(rawArgs) {
-  if (!inShop()) {
-    logSystem("There is nowhere here to buy anything.");
+    logSystem("There is nowhere here to sell anything.");
     return;
   }
 
@@ -3911,74 +3862,59 @@ function handleBuy(rawArgs) {
   const arg = normalizeWord(argRaw);
 
   if (!arg) {
-    logSystem("Buy what? (Try: 'shop' then 'buy 1')");
+    const sellables = listSellCandidates()
+      .map((g, i) => {
+        const v = getSellValue(g.item);
+        if (!v) return null;
+        const n = g.total > 1 ? ` (x${g.total})` : "";
+        return `${i + 1}. ${g.item.name}${n} — ${v} coin${v === 1 ? "" : "s"}`;
+      })
+      .filter(Boolean);
+
+    logSystem(
+      sellables.length
+        ? ["Sell what? You could sell:", sellables.join("\n"), "Try: 'sell 1' or 'sell <name>'."].join("\n")
+        : "You have nothing here the shop will buy."
+    );
     return;
   }
 
-  let picked = null;
+  const groups = listSellCandidates();
 
+  let picked = null;
   const num = Number.parseInt(arg, 10);
   if (!Number.isNaN(num) && String(num) === arg) {
-    picked = shopStock[num - 1] || null;
+    picked = groups[num - 1] || null;
   } else {
     picked =
-      shopStock.find((s) => normalizeWord(s.name).includes(arg) || normalizeWord(s.id).includes(arg)) ||
-      null;
+      groups.find((g) => {
+        const nm = normalizeWord(g.item.name || "");
+        const id = normalizeWord(g.item.id || "");
+        return nm.includes(arg) || id.includes(arg);
+      }) || null;
   }
 
   if (!picked) {
-    logSystem("The shop doesn’t seem to offer that.");
+    logSystem("You fumble for that item, but the shop doesn’t seem to recognize it—or you don’t have it.");
     return;
   }
 
-  if (!spendCoins(picked.price)) {
-    logSystem(`You count your coins twice. You need ${picked.price}, and you don’t have them.`);
+  const value = getSellValue(picked.item);
+  if (!value) {
+    logSystem("The presence behind the glass refuses that. No price. No trade.");
     return;
   }
 
-  const item = picked.makeItem();
-  gameState.inventory.push(item);
+  const ok = removeOneFromGroup(picked);
+  if (!ok) {
+    logSystem("Something slips in the logic. The sale doesn’t take.");
+    return;
+  }
 
-  logSystem(`The glass breathes open just long enough to accept payment and return a ${item.name}.`);
-  logSystem(`Coins left: ${countCoins()}.`);
+  addCoins(value);
+  logSystem(`The glass opens a hairline and takes it. Coins click back into your palm. (+${value})`);
+  logSystem(`Your coins: ${countCoins()}`);
   updateStatusBar();
-}
-
-// Selling logic: prefer explicit value, otherwise allow only certain types
-function getSellValue(item) {
-  if (!item) return 0;
-
-  // Never sell coins
-  if (item.id === "dawnspire-coin" || item.type === "coin") return 0;
-
-  // Explicit value wins
-  if (typeof item.value === "number" && item.value > 0) return Math.floor(item.value);
-
-  // Sensible defaults (tweak freely)
-  if (item.type === "treasure") return 15;
-  if (item.type === "lore") return 2;
-  if (item.type === "key") return 0;      // shards/keys shouldn't be sellable
-  if (item.type === "weapon") return 6;   // lowball
-  if (item.type === "shield") return 4;
-  if (item.type === "consumable") return 1;
-  if (item.type === "ration") return 1;
-
-  return 0;
-}
-
-function shopkeeperDeflect(raw) {
-  const q = String(raw || "").trim();
-  if (!q) {
-    logSystem("The presence waits, patient and unworried.");
-    return;
-  }
-
-  const lines = [
-    "The shopkeeper doesn’t answer questions. It only prices them.",
-    "A finger taps the glass once—soft as a threat, polite as a promise.",
-    "The letters on the inside sign rearrange themselves into something you *almost* understand. You look away first.",
-  ];
-  logSystem(pickLine(lines));
 }
 
 
