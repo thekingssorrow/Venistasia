@@ -3922,76 +3922,21 @@ function handleSell(rawArgs) {
 // Command parser
 // =========================
 
-function handleCombatCommand(cmd, raw) {
-  switch (cmd) {
-    case "attack":
-      handleAttack();
-      break;
-    case "block":
-      handleBlock();
-      break;
-    case "run":
-      handleRun();
-      break;
-    case "use": {
-      const argStr = raw.slice(4).trim();
-      handleUse(argStr, { inCombat: true });
-      break;
-    }
-      case "shop":
-case "buy":
-case "sell":
-  logSystem("Not now.");
-  break;
-
-    case "clear":
-      logSystem("Not now. Clearings are for when you're not bleeding.");
-      break;
-    case "ring": {
-      const argStr = raw.slice(5).trim();
-      handleRing(argStr, { inCombat: true });
-      break;
-    }
-    case "equip":
-      logSystem("You don't have time to fumble with gear while something is trying to open you up.");
-      break;
-    case "adjust":
-      logSystem("You don't have the luxury of fiddling with mechanisms mid-fight.");
-      break;
-    case "look":
-      handleLook();
-      break;
-    case "inventory":
-    case "inv":
-      handleInventory();
-      break;
-    case "help":
-      handleHelp();
-      break;
-    case "rest":
-      logSystem("You can't rest while something is trying to rip you open.");
-      break;
-    case "search":
-      logSystem("You can't spare the attention to search right now.");
-      break;
-    default:
-      logSystem("In the heat of battle, that command makes no sense. Try 'attack', 'block', 'run', or 'use bandage'.");
-      break;
-  }
-}
-
 function handleCommand(raw) {
-  const input = String(raw || "").trim();
+  let input = String(raw || "").trim();
   if (!input) return;
+
+  // If your UI includes the prompt char in the actual input, remove it.
+  if (input.startsWith(">")) input = input.slice(1).trim();
 
   logCommand(input);
 
   const [cmdRaw, ...rest] = input.toLowerCase().split(/\s+/);
   const cmd = cmdRaw;
-  const argStr = rest.join(" ");
+  const argStr = rest.join(" ").trim();
 
   if (gameState.combat.inCombat) {
-    handleCombatCommand(cmd, raw);
+    handleCombatCommand(cmd, input); // pass the cleaned input
     scheduleSave();
     return;
   }
@@ -4000,92 +3945,85 @@ function handleCommand(raw) {
     case "help":
       handleHelp();
       break;
+
     case "look":
       handleLook();
       break;
+
     case "inventory":
     case "inv":
     case "i":
       handleInventory();
       break;
-    case "go":
-      if (!rest.length) {
-        logSystem("Go where? (north, south, east, west, up, down, forward, back)");
-      } else {
-        handleGo(rest[0]);
-      }
-      break;
-      case "shop":
-  handleShop(argStr);
-  break;
-case "buy":
-  handleBuy(raw.slice(4).trim());
-  break;
-case "sell":
-  handleSell(raw.slice(5).trim());
-  break;
-case "talk":
-case "ask":
-  if (inShop()) shopkeeperDeflect(raw.slice(cmd.length + 1).trim());
-  else logSystem("No one answers.");
-  break;
 
-      case "clear":
-  handleClear(raw.slice(6).trim());
-  break;
+    case "go":
+      if (!argStr) logSystem("Go where? (north, south, east, west, up, down, forward, back)");
+      else handleGo(argStr);
+      break;
+
+    case "shop":
+    case "store":
+      handleShop(); // no args needed
+      break;
+
+    case "buy":
+    case "purchase":
+      handleBuy(argStr); // <-- use parsed args ("" is fine)
+      break;
+
+    case "sell":
+      handleSell(argStr);
+      break;
+
+    case "talk":
+    case "ask":
+      if (inShop()) shopkeeperDeflect(argStr);
+      else logSystem("No one answers.");
+      break;
+
+    case "clear":
+      handleClear(argStr);
+      break;
+
     case "name":
-      handleName(raw.slice(5).trim());
+      handleName(argStr);
       break;
-    case "attack":
-      logSystem("There's nothing here to attack.");
-      break;
-    case "block":
-      logSystem(
-        "You square your shoulders and raise your guard. Nothing is close enough to hit you. Yet."
-      );
-      break;
-    case "run":
-      logSystem("There's nothing to run from.");
-      break;
+
     case "rest":
       handleRest();
       break;
+
     case "use":
-      handleUse(raw.slice(4).trim(), { inCombat: false });
+      handleUse(argStr, { inCombat: false });
       break;
+
     case "equip":
-      handleEquip(raw.slice(6).trim());
+      handleEquip(argStr);
       break;
+
     case "adjust":
-      handleAdjust(raw.slice(6).trim());
+      handleAdjust(argStr);
       break;
+
     case "ring":
-      handleRing(raw.slice(5).trim(), { inCombat: false });
+      handleRing(argStr, { inCombat: false });
       break;
+
     case "search":
       handleSearch();
       break;
+
     case "reset":
       handleReset();
       break;
+
     default: {
-      // Nice directional shorthand (n/s/e/w/u/d/f/b) without "go"
       const asDir = normalizeDirection(cmd);
-      const validDirs = new Set([
-        "north",
-        "south",
-        "east",
-        "west",
-        "up",
-        "down",
-        "forward",
-        "back",
-      ]);
+      const validDirs = new Set(["north","south","east","west","up","down","forward","back"]);
       if (validDirs.has(asDir)) {
         handleGo(asDir);
         break;
       }
-
       logSystem("You mumble, unsure what that means. (Type 'help' for commands.)");
       break;
     }
@@ -4093,7 +4031,6 @@ case "ask":
 
   scheduleSave();
 }
-
 // =========================
 // Autosave to server
 // =========================
