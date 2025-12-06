@@ -522,6 +522,16 @@ sludge_channel: {
     "A spill of old mechanism housings sits nearby—dead wheels, dead chains, and a channel that looks safer when the water runs lower.",
   ].join(" "),
 },
+  // Room 23 – Impossible Shopfront (shop room)
+impossible_shopfront: {
+  name: "Dawnspire – Impossible Shopfront",
+  description: [
+    "A storefront stands where no storefront should fit—stone carved into the suggestion of a street, a doorframe too clean for a ruin.",
+    "Behind warped glass, shapes of goods sit in neat rows, dustless and wrong. A sign hangs inside, letters shifting when you try to read them.",
+    "The air smells faintly of ink, old coins, and a promise that wants you to agree before it speaks.",
+  ].join(" "),
+},
+
 };
 
 // Exits helper text for each location
@@ -573,7 +583,9 @@ const exitsByLocation = {
 sludge_channel:
   "Obvious exits: north/back – a crawl back to the cistern platform; east – a side entrance marked by bent-light carvings.",
 filtration_grate:
-  "Obvious exits: south/back – to the cistern platform.",
+  "Obvious exits: south/back – to the cistern platform; north/forward – behind the grate (if you can clear it).",
+impossible_shopfront:
+  "Obvious exits: south/back – back through the opening to the filtration grate.",
   gate_bent_light_back:
   "Obvious exits: west/back – back into the sludge channel.",
 };
@@ -697,6 +709,12 @@ function handleTrapDeath(trapKey) {
     "The pipe bursts at point-blank range. Foul water slams into your face and throat. You choke, stumble, and the world goes dim behind a wet ringing.",
   ];
   break;
+      case "filtration_bite":
+  lines = [
+    "Something snaps from the black water behind the bars and locks onto you. Teeth find artery. You feel the pulse stutter, then stop.",
+  ];
+  break;
+
     default:
       lines = [
         "Something in the dark moves, and your story ends faster than you can understand.",
@@ -770,6 +788,91 @@ function runGnawedStoreroomTrap() {
     `They tear at your ankles and calves before scattering back into the dark. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`
   );
   return true;
+}
+function isLongWeaponEquipped() {
+  const w = getEquippedWeapon();
+  if (!w) return false;
+  const n = (w.name || "").toLowerCase();
+  // Your current long weapon is the Old Guard Spear; this leaves room for future polearms.
+  return w.id === "old-guard-spear" || n.includes("spear") || n.includes("halberd") || n.includes("pike");
+}
+
+function maybeGrantFiltrationGrateLoot() {
+  if (gameState.flags.filtrationGrateLootTaken) return;
+  gameState.flags.filtrationGrateLootTaken = true;
+
+  const pendant = {
+    id: "silvered-pendant",
+    name: "Silvered Pendant",
+    type: "treasure",
+    value: 35, // “decent sell value” hook for later
+  };
+
+  const draught = {
+    id: "purifying-draught",
+    name: "Purifying Draught",
+    type: "consumable",
+    heal: 10,
+  };
+
+  gameState.inventory.push(pendant, draught);
+  logSystem("You pry free something caught in the bones and mineral crust.");
+  logSystem("You gain: Silvered Pendant, Purifying Draught.");
+}
+
+function attemptClearFiltrationGrate({ usingLongWeapon = false } = {}) {
+  if (gameState.combat.inCombat) {
+    logSystem("You can't risk both hands on the grate while something is trying to kill you.");
+    return;
+  }
+
+  if (gameState.location !== "filtration_grate") {
+    logSystem("There's nothing here that needs clearing.");
+    return;
+  }
+
+  if (gameState.flags.filtrationGrateCleared) {
+    logSystem("The grate is already cleared enough to squeeze past.");
+    return;
+  }
+
+  if (usingLongWeapon) {
+    logSystem(
+      "You brace your long weapon between the bars and lever bones and debris free without putting your fingers where the water can bite."
+    );
+    gameState.flags.filtrationGrateCleared = true;
+    logSystem("With a final scrape, a broken opening behind the grate reveals itself.");
+    maybeGrantFiltrationGrateLoot();
+    return;
+  }
+
+  // By-hand attempt: risk a bite (HP chip)
+  logSystem("You reach into the clogged grate and start pulling debris free by hand.");
+
+  const bite = roll(1, 100) <= 70; // risky by design
+  if (bite) {
+    const dmg = roll(1, 2);
+    const p = gameState.player;
+
+    logSystem("Something unseen jerks in the black water and clamps down—hard.");
+    p.hp -= dmg;
+
+    if (p.hp <= 0) {
+      p.hp = 0;
+      updateStatusBar();
+      handleTrapDeath("filtration_bite");
+      return;
+    }
+
+    updateStatusBar();
+    logSystem(`You rip free, bleeding. (${dmg} damage) HP: ${p.hp}/${p.maxHp}.`);
+  } else {
+    logSystem("Cold water laps your wrist, but nothing closes on you this time.");
+  }
+
+  gameState.flags.filtrationGrateCleared = true;
+  logSystem("The clog finally gives. Behind the grate, a broken opening yawns into someplace that shouldn't exist.");
+  maybeGrantFiltrationGrateLoot();
 }
 
 // helper: Broken Barracks search trap + loot
@@ -1572,6 +1675,17 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
     logSystem("Use what?");
     return;
   }
+// Filtration Grate: use a long weapon to clear safely
+if (gameState.location === "filtration_grate") {
+  if (arg.includes("grate")) {
+    attemptClearFiltrationGrate({ usingLongWeapon: isLongWeaponEquipped() });
+    return;
+  }
+  if (arg.includes("spear") || arg.includes("halberd") || arg.includes("pike")) {
+    attemptClearFiltrationGrate({ usingLongWeapon: true });
+    return;
+  }
+}
 
   // Allow numeric use (matches inventory list order)
   const num = Number.parseInt(arg, 10);
@@ -1594,6 +1708,25 @@ function handleUse(rawArgs, { inCombat = false } = {}) {
     triggerBellRing();
     return;
   }
+if (arg.includes("purifying") || arg.includes("purify")) {
+  const idx = findItemIndexByNameFragment("purifying");
+  if (idx === -1) {
+    logSystem("You don't have anything like that to drink.");
+    return;
+  }
+  const item = gameState.inventory[idx];
+  const healAmount = item.heal || 10;
+  consumeItemByIndex(idx);
+
+  const p = gameState.player;
+  const before = p.hp;
+  p.hp = Math.min(p.maxHp, p.hp + healAmount);
+  updateStatusBar();
+
+  logSystem("You drink the purifying draught. The cold in your veins breaks and runs away.");
+  logSystem(`You recover ${p.hp - before} HP. HP: ${p.hp}/${p.maxHp}.`);
+  return;
+}
 
   // Bandages – mid-combat heal
   if (arg.includes("bandage")) {
@@ -1852,6 +1985,22 @@ function handleRing(rawArgs, { inCombat = false } = {}) {
 
   logSystem("You don't find anything that wants to be rung.");
 }
+function handleClear(rawArgs) {
+  const a = normalizeWord(rawArgs);
+  if (!a) {
+    logSystem("Clear what? (Try: 'clear grate')");
+    return;
+  }
+
+  if (gameState.location === "filtration_grate" && a.includes("grate")) {
+    const wantsLong =
+      a.includes("spear") || a.includes("halberd") || a.includes("pike") || isLongWeaponEquipped();
+    attemptClearFiltrationGrate({ usingLongWeapon: wantsLong });
+    return;
+  }
+
+  logSystem("You try to clear it, but nothing here responds to that kind of effort.");
+}
 
 function handleSearch() {
   if (gameState.combat.inCombat) {
@@ -1874,6 +2023,11 @@ function handleSearch() {
     runBarracksSearchTrapAndLoot();
     return;
   }
+if (loc === "filtration_grate") {
+  // Searching here = trying by hand (risky).
+  attemptClearFiltrationGrate({ usingLongWeapon: false });
+  return;
+}
 
   if (loc === "gnawed_storeroom") {
     if (!gameState.flags.gnawedStoreroomTrapDone) {
@@ -3325,6 +3479,16 @@ if (loc === "filtration_grate") {
     describeLocation();
     return;
   }
+  if (direction === "north" || direction === "forward") {
+  if (!gameState.flags.filtrationGrateCleared) {
+    logSystem("The grate still chokes the way. You’d need to clear it first. (Try: 'clear grate')");
+    return;
+  }
+  gameState.location = "impossible_shopfront";
+  logSystem("You squeeze through the broken opening behind the grate—and the stonework changes shape around you.");
+  describeLocation();
+  return;
+}
 }
 // Room 22 – Gate of Bent Light (Back Route)
 if (loc === "gate_bent_light_back") {
@@ -3334,6 +3498,16 @@ if (loc === "gate_bent_light_back") {
     describeLocation();
     return;
   }
+  if (loc === "impossible_shopfront") {
+  if (direction === "south" || direction === "back") {
+    gameState.location = "filtration_grate";
+    logSystem("You step back through the opening. The air turns wet and mineral again.");
+    describeLocation();
+    return;
+  }
+  logSystem("The shopfront doesn’t offer a normal exit that way.");
+  return;
+}
 
   logSystem("The gate doesn't offer a way forward. Not yet.");
   return;
@@ -3360,6 +3534,7 @@ function handleHelp() {
       "  run                - attempt to flee from combat",
       "  rest               - consume a ration to fully restore your HP",
       "  use <item>         - use an item (e.g., 'use bandage', 'use shard', 'use draught', 'use journal')",
+      "  clear <thing>       - clear an obstruction (e.g., 'clear grate')",
       "  use <number>       - use by inventory number (from 'inventory')",
       "  equip <item>       - equip a weapon or shield (e.g., 'equip buckler', 'equip spear', 'equip sword')",
       "  equip <number>     - equip by inventory number (from 'inventory')",
@@ -3461,6 +3636,9 @@ function handleCombatCommand(cmd, raw) {
       const argStr = raw.slice(4).trim();
       handleUse(argStr, { inCombat: true });
       break;
+      case "clear":
+  logSystem("Not now. Clearings are for when you're not bleeding.");
+  break;
     }
     case "ring": {
       const argStr = raw.slice(5).trim();
@@ -3534,6 +3712,9 @@ function handleCommand(raw) {
         handleGo(rest[0]);
       }
       break;
+      case "clear":
+  handleClear(raw.slice(6).trim());
+  break;
     case "name":
       handleName(raw.slice(5).trim());
       break;
