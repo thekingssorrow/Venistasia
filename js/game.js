@@ -3786,7 +3786,7 @@ function handleReset() {
   scheduleSave();
 }
 // =========================
-// Shop system (drop-in)
+// Shop system (clean drop-in)
 // =========================
 
 // Shop is ONLY in this room id:
@@ -3794,28 +3794,100 @@ function inShop() {
   return gameState.location === "impossible_shopfront";
 }
 
-// --- Coin helpers (coins are inventory items) ---
+// Normalize helper (use yours if you already have one)
+function normalizeWord(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+// --- Inventory view (groups duplicates like your "Dawnspire Coin (11)" line) ---
+function buildInventoryView() {
+  const out = [];
+  const seen = new Map(); // key -> index in out
+
+  for (const it of gameState.inventory) {
+    if (!it) continue;
+    const key = String(it.id || it.name || "unknown");
+    if (seen.has(key)) {
+      out[seen.get(key)].count += (typeof it.qty === "number" ? it.qty : 1);
+    } else {
+      seen.set(key, out.length);
+      out.push({
+        item: it,
+        key,
+        count: (typeof it.qty === "number" ? it.qty : 1),
+      });
+    }
+  }
+  return out;
+}
+
+// --- Coins helpers (supports either stacked qty OR many coin items) ---
+function isCoin(it) {
+  return it && (it.type === "coin" || it.id === "dawnspire-coin" || normalizeWord(it.name) === "dawnspire coin");
+}
+
 function countCoins() {
-  return gameState.inventory.reduce((n, it) => n + ((it && (it.type === "coin" || it.id === "dawnspire-coin")) ? 1 : 0), 0);
+  return gameState.inventory.reduce((n, it) => {
+    if (!isCoin(it)) return n;
+    return n + (typeof it.qty === "number" ? it.qty : 1);
+  }, 0);
 }
 
 function addCoins(n) {
-  for (let i = 0; i < n; i++) {
+  const amt = Math.max(0, Number(n) || 0);
+  if (amt === 0) return;
+
+  // If you already have a stacked coin item, add to it
+  const stack = gameState.inventory.find(it => isCoin(it) && typeof it.qty === "number");
+  if (stack) {
+    stack.qty += amt;
+    return;
+  }
+
+  // Otherwise add as individual coins
+  for (let i = 0; i < amt; i++) {
     gameState.inventory.push({ id: "dawnspire-coin", name: "Dawnspire Coin", type: "coin" });
   }
 }
 
 function spendCoins(n) {
-  let remaining = n;
-  for (let i = gameState.inventory.length - 1; i >= 0 && remaining > 0; i--) {
-    const it = gameState.inventory[i];
-    if (!it) continue;
-    if (it.type === "coin" || it.id === "dawnspire-coin") {
-      gameState.inventory.splice(i, 1);
-      remaining--;
+  let remaining = Math.max(0, Number(n) || 0);
+  if (remaining === 0) return true;
+
+  // Prefer consuming from stacked coin item if present
+  for (const it of gameState.inventory) {
+    if (!isCoin(it)) continue;
+    if (typeof it.qty === "number" && it.qty > 0) {
+      const take = Math.min(it.qty, remaining);
+      it.qty -= take;
+      remaining -= take;
+      if (it.qty <= 0) it.qty = 0;
+      if (remaining === 0) break;
     }
   }
-  return remaining === 0; // true if paid in full
+
+  // Then consume individual coin items
+  for (let i = gameState.inventory.length - 1; i >= 0 && remaining > 0; i--) {
+    const it = gameState.inventory[i];
+    if (!isCoin(it)) continue;
+    if (typeof it.qty === "number") continue; // already handled
+    gameState.inventory.splice(i, 1);
+    remaining--;
+  }
+
+  // Cleanup zero-qty stacks
+  for (let i = gameState.inventory.length - 1; i >= 0; i--) {
+    const it = gameState.inventory[i];
+    if (isCoin(it) && typeof it.qty === "number" && it.qty <= 0) {
+      gameState.inventory.splice(i, 1);
+    }
+  }
+
+  return remaining === 0;
 }
 
 // --- What the shop sells ---
@@ -3851,30 +3923,58 @@ const SHOP_STOCK = [
 ];
 
 // --- Selling rules ---
-// Return 0/falsey to refuse purchase.
 function getSellValue(item) {
   if (!item) return 0;
 
-  // never sell coins
-  if (item.type === "coin" || item.id === "dawnspire-coin") return 0;
+  if (isCoin(item)) return 0;
 
-  // explicit treasure value hook (you already added `value` on silvered pendant)
-  if (typeof item.value === "number" && item.value > 0) return Math.floor(item.value);
+  const nm = normalizeWord(item.name);
 
-  // modest defaults (tweak freely)
-  if (item.type === "weapon") return 4 + Math.max(0, item.atk || 0);
-  if (item.type === "shield") return 4;
-  if (item.type === "consumable") return 2;
-  if (item.type === "ration") return 1;
+  // never sell shards / quest vibe stuff
+  if (nm.includes("lantern shard")) return 0;
+  if (nm.includes("lantern knight") && nm.includes("badge")) return 0;
+  if (nm.includes("torn journal")) return 0;
 
   // lore/keys/rings/charms usually not buyable
   if (item.type === "key" || item.type === "lore" || item.type === "ring" || item.type === "charm") return 0;
 
+  // explicit treasure hook
+  if (typeof item.value === "number" && item.value > 0) return Math.max(1, Math.floor(item.value));
+
+  // reasonable defaults
+  if (item.type === "weapon") return 3;
+  if (item.type === "shield") return 2;
+  if (item.type === "consumable") return 1;
+  if (item.type === "ration") return 1;
+
   return 0;
 }
 
-function shopkeeperDeflect(_argStr) {
-  logSystem("The thing behind the warped glass doesn’t answer questions. It only prices you.");
+// Removes ONE unit of an item from the raw inventory
+function removeOneFromInventory(targetItem) {
+  // stacked item?
+  const idxStack = gameState.inventory.findIndex(it => it && (it.id === targetItem.id) && typeof it.qty === "number" && it.qty > 0);
+  if (idxStack !== -1) {
+    gameState.inventory[idxStack].qty -= 1;
+    if (gameState.inventory[idxStack].qty <= 0) gameState.inventory.splice(idxStack, 1);
+    return true;
+  }
+
+  // otherwise remove a single matching object
+  const idx = gameState.inventory.findIndex(it => it && it.id === targetItem.id);
+  if (idx !== -1) {
+    gameState.inventory.splice(idx, 1);
+    return true;
+  }
+
+  // fallback match by name
+  const idx2 = gameState.inventory.findIndex(it => it && normalizeWord(it.name) === normalizeWord(targetItem.name));
+  if (idx2 !== -1) {
+    gameState.inventory.splice(idx2, 1);
+    return true;
+  }
+
+  return false;
 }
 
 function printShop() {
@@ -3897,57 +3997,101 @@ function printShop() {
 }
 
 function handleShop() {
-  if (!inShop()) {
-    logSystem("There is no shop here.");
-    return;
-  }
+  if (!inShop()) return logSystem("There is no shop here.");
   printShop();
 }
 
 function handleBuy(rawArgs) {
-  if (!inShop()) {
-    logSystem("There is nowhere here to buy anything.");
-    return;
-  }
+  if (!inShop()) return logSystem("There is nowhere here to buy anything.");
 
   const argRaw = String(rawArgs || "").trim();
   const arg = normalizeWord(argRaw);
-
-  if (!arg) {
-    logSystem("Buy what? (Try: 'buy 1' or 'buy bandage')");
-    return;
-  }
+  if (!arg) return logSystem("Buy what? (Try: 'buy 1' or 'buy bandage')");
 
   let picked = null;
   const num = Number.parseInt(arg, 10);
   if (!Number.isNaN(num) && String(num) === arg) {
     picked = SHOP_STOCK[num - 1] || null;
   } else {
-    picked =
-      SHOP_STOCK.find((s) => normalizeWord(s.name).includes(arg) || normalizeWord(s.id).includes(arg)) ||
-      null;
+    picked = SHOP_STOCK.find(s =>
+      normalizeWord(s.name).includes(arg) || normalizeWord(s.id).includes(arg)
+    ) || null;
   }
 
-  if (!picked) {
-    logSystem("The glass shows no such item.");
-    return;
-  }
+  if (!picked) return logSystem("The glass shows no such item.");
 
   if (countCoins() < picked.price) {
     logSystem("Your hand closes on empty air. Not enough coins.");
-    logSystem(`Cost: ${picked.price}. Your coins: ${countCoins()}.`);
-    return;
+    return logSystem(`Cost: ${picked.price}. Your coins: ${countCoins()}.`);
   }
 
-  if (!spendCoins(picked.price)) {
-    logSystem("Something slips in the counting. The trade fails.");
-    return;
-  }
+  if (!spendCoins(picked.price)) return logSystem("Something slips in the counting. The trade fails.");
 
-  // Add a fresh copy of the stock item
   gameState.inventory.push({ ...picked.item });
 
   logSystem(`The glass opens a hairline and lets it fall into your palm. (You bought: ${picked.name})`);
+  logSystem(`Your coins: ${countCoins()}`);
+  updateStatusBar();
+}
+
+// --- SELL ---
+function handleSell(rawArgs) {
+  if (!inShop()) return logSystem("There is no one here to buy what you’re carrying.");
+
+  const argRaw = String(rawArgs || "").trim();
+
+  // "sell" -> show sellable list (using grouped view, so numbering matches your inv style)
+  if (!argRaw) {
+    const view = buildInventoryView();
+
+    const sellable = view
+      .map((entry, i) => {
+        const v = getSellValue(entry.item);
+        return { invIndex: i + 1, entry, value: v };
+      })
+      .filter(x => x.value > 0);
+
+    if (sellable.length === 0) {
+      return logSystem("The warped glass refuses everything you have.");
+    }
+
+    const lines = sellable.map(x => {
+      const name = x.entry.item.name || "Unknown";
+      const count = x.entry.count || 1;
+      const suffix = count > 1 ? ` (x${count})` : "";
+      return `${x.invIndex}. ${name}${suffix} — ${x.value} coin${x.value === 1 ? "" : "s"}`;
+    });
+
+    logSystem(
+      [
+        "The sign tilts. The prices shift into the shape of your burden:",
+        lines.join("\n"),
+        "",
+        "Try: 'sell 1' (uses your inventory number).",
+      ].join("\n")
+    );
+    return;
+  }
+
+  // "sell 1" -> sell by inventory number in the grouped view
+  const num = Number.parseInt(argRaw, 10);
+  if (Number.isNaN(num) || String(num) !== argRaw) {
+    return logSystem("Sell which item number? (Example: sell 1)");
+  }
+
+  const view = buildInventoryView();
+  if (num < 1 || num > view.length) return logSystem("That item number doesn’t exist.");
+
+  const chosen = view[num - 1].item;
+  const value = getSellValue(chosen);
+  if (!value) return logSystem("The warped glass won’t take that.");
+
+  // remove exactly one unit + pay
+  if (!removeOneFromInventory(chosen)) return logSystem("Your fingers close on nothing. The trade fails.");
+
+  addCoins(value);
+
+  logSystem(`The glass drinks it up. You feel heavier by ${value} coin${value === 1 ? "" : "s"}.`);
   logSystem(`Your coins: ${countCoins()}`);
   updateStatusBar();
 }
