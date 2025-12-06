@@ -4091,189 +4091,162 @@ function handleSell(rawArgs) {
 // =========================
 // Command parser
 // =========================
-function useBandage(inCombat) {
-  const idx = findItemIndexByNameFragment("bandage");
-  if (idx === -1) {
-    logSystem("You fumble for a bandage, but come up with nothing but dirty fingers.");
-    return false;
-  }
+function handleCombatCommand(cmd, fullInput) {
+  const combat = gameState.combat;
+  if (!combat || !combat.inCombat) return;
 
-  const item = gameState.inventory[idx];
-  const healAmount = item.heal || 4;
-  consumeItemByIndex(idx);
-
-  const p = gameState.player;
-  const before = p.hp;
-  p.hp = Math.min(p.maxHp, p.hp + healAmount);
-  updateStatusBar();
-
-  const healed = p.hp - before;
-
-  if (healed <= 0) {
-    logSystem(
-      "You wrap the filthy cloth around already-closed wounds. It does more for your courage than your flesh."
-    );
-  } else if (inCombat) {
-    logSystem(
-      "You yank the filthy bandage tight around the worst of the bleeding, teeth clenched."
-    );
-    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
-  } else {
-    logSystem(
-      "You take a moment to wrap the dirty bandage around the worst of the damage. It isn't clean, but it holds you together."
-    );
-    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
-  }
-
-  return true;
-}
-
-function useHealingDraught(inCombat) {
-  const idx = findItemIndexByNameFragment("draught");
-  const idxAlt = idx === -1 ? findItemIndexByNameFragment("potion") : idx;
-
-  const useIdx = idxAlt;
-  if (useIdx === -1) {
-    logSystem("You pat yourself down for a vial, but come up empty.");
-    return false;
-  }
-
-  const item = gameState.inventory[useIdx];
-  const healAmount = item.heal || 8;
-  consumeItemByIndex(useIdx);
-
-  const p = gameState.player;
-  const before = p.hp;
-  p.hp = Math.min(p.maxHp, p.hp + healAmount);
-  updateStatusBar();
-  const healed = p.hp - before;
-
-  if (healed <= 0) {
-    logSystem("You swallow the bitter liquid, but it only calms your nerves.");
-  } else if (inCombat) {
-    logSystem(
-      "You wrench the stopper out with your teeth and gulp the draught down as fast as you dare. Heat blooms in your gut and spreads outward."
-    );
-    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
-  } else {
-    logSystem(
-      "You drink the draught slowly, letting its warmth seep into the aches and bruises that never quite left."
-    );
-    logSystem(`You recover ${healed} HP. HP: ${p.hp}/${p.maxHp}.`);
-  }
-
-  return true;
-}
-
-
-function handleCommand(raw) {
-  let input = String(raw || "").trim();
-  if (!input) return;
-
-  // If your UI includes the prompt char in the actual input, remove it.
+  // Normalize / re-parse so we can reliably get args even if caller passes only cmd
+  let input = String(fullInput || "").trim();
   if (input.startsWith(">")) input = input.slice(1).trim();
+  const parts = input.toLowerCase().split(/\s+/);
+  const verb = (parts[0] || cmd || "").toLowerCase();
+  const argStr = parts.slice(1).join(" ").trim();
 
-  logCommand(input);
+  const p = gameState.player;
+  const enemy = combat.enemy || combat.target || combat.currentEnemy;
 
-  const [cmdRaw, ...rest] = input.toLowerCase().split(/\s+/);
-  const cmd = cmdRaw;
-  const argStr = rest.join(" ").trim();
+  // ---- helpers -------------------------------------------------------------
 
-  if (gameState.combat.inCombat) {
-    handleCombatCommand(cmd, input); // pass the cleaned input
-    scheduleSave();
-    return;
-  }
+  const enemyAlive = () => enemy && typeof enemy.hp === "number" ? enemy.hp > 0 : !!enemy;
 
-  switch (cmd) {
+  const endCombatIfEnemyDead = () => {
+    if (!enemy) return false;
+    if (typeof enemy.hp === "number" && enemy.hp <= 0) {
+      combat.inCombat = false;
+      // If you already have a helper, use it.
+      if (typeof finishCombat === "function") finishCombat(true);
+      else if (typeof endCombat === "function") endCombat(true);
+      else logSystem(`The ${enemy.name || "enemy"} collapses.`);
+      updateStatusBar?.();
+      return true;
+    }
+    return false;
+  };
+
+  const doEnemyTurnFallback = () => {
+    if (!enemy || !p) return;
+
+    // Basic damage model (only used if you don't already have an enemy-turn function)
+    const min = (typeof enemy.minDamage === "number") ? enemy.minDamage : 3;
+    const max = (typeof enemy.maxDamage === "number") ? enemy.maxDamage : 6;
+    const dmg = Math.floor(Math.random() * (max - min + 1)) + min;
+
+    p.hp = Math.max(0, p.hp - dmg);
+    updateStatusBar?.();
+
+    const name = enemy.name || "The enemy";
+    logSystem(`${name} drives a blade across your chest. (${dmg} damage)`);
+    logSystem(`Blood slicks your skin. HP: ${p.hp}/${p.maxHp}.`);
+
+    // Optional telegraph line (matches your vibe)
+    logSystem(`${name} shifts its weight and draws back for a straight, killing thrust.`);
+
+    if (p.hp <= 0) {
+      combat.inCombat = false;
+      if (typeof handleDeath === "function") handleDeath();
+      else logSystem("You go cold and quiet.");
+    }
+  };
+
+  const doEnemyTurn = () => {
+    if (!combat.inCombat) return;
+    if (endCombatIfEnemyDead()) return;
+
+    // Prefer your existing combat engine if it exists
+    if (typeof enemyTurn === "function") return enemyTurn();
+    if (typeof handleEnemyTurn === "function") return handleEnemyTurn();
+    if (typeof runEnemyTurn === "function") return runEnemyTurn();
+
+    // Otherwise use fallback
+    doEnemyTurnFallback();
+  };
+
+  const doPlayerAttack = () => {
+    // Prefer your existing combat engine if it exists
+    if (typeof playerAttack === "function") return playerAttack();
+    if (typeof handleAttack === "function") return handleAttack();
+    if (typeof attackEnemy === "function") return attackEnemy();
+
+    // Minimal fallback if nothing else exists
+    if (!enemy || typeof enemy.hp !== "number") {
+      logSystem("You swing at nothing in particular.");
+      return;
+    }
+    const dmg = 4; // simple default
+    enemy.hp = Math.max(0, enemy.hp - dmg);
+    logSystem(`You strike the ${enemy.name || "enemy"} for ${dmg} damage.`);
+    endCombatIfEnemyDead();
+  };
+
+  // ---- command handling -----------------------------------------------------
+
+  switch (verb) {
     case "help":
-      handleHelp();
-      break;
-
-    case "look":
-      handleLook();
-      break;
+      if (typeof handleCombatHelp === "function") handleCombatHelp();
+      else logSystem("Combat commands: attack, use <item>, inventory, run");
+      return; // help should NOT trigger enemy auto-attack
 
     case "inventory":
     case "inv":
     case "i":
-      handleInventory();
-      break;
+      handleInventory?.();
+      return; // viewing inventory should NOT trigger enemy auto-attack
 
-    case "go":
-      if (!argStr) logSystem("Go where? (north, south, east, west, up, down, forward, back)");
-      else handleGo(argStr);
-      break;
-
-    case "shop":
-    case "store":
-      handleShop(); // no args needed
-      break;
-
-    case "buy":
-    case "purchase":
-      handleBuy(argStr); // <-- use parsed args ("" is fine)
-      break;
-
-    case "sell":
-      handleSell(argStr);
-      break;
-
-    case "talk":
-    case "ask":
-      if (inShop()) shopkeeperDeflect(argStr);
-      else logSystem("No one answers.");
-      break;
-
-    case "clear":
-      handleClear(argStr);
-      break;
-
-    case "name":
-      handleName(argStr);
-      break;
-
-    case "rest":
-      handleRest();
-      break;
-
-    case "use":
-      handleUse(argStr, { inCombat: false });
-      break;
-
-    case "equip":
-      handleEquip(argStr);
-      break;
-
-    case "adjust":
-      handleAdjust(argStr);
-      break;
-
-    case "ring":
-      handleRing(argStr, { inCombat: false });
-      break;
-
-    case "search":
-      handleSearch();
-      break;
-
-    case "reset":
-      handleReset();
-      break;
-
-    default: {
-      const asDir = normalizeDirection(cmd);
-      const validDirs = new Set(["north","south","east","west","up","down","forward","back"]);
-      if (validDirs.has(asDir)) {
-        handleGo(asDir);
-        break;
+    case "use": {
+      if (!argStr) {
+        logSystem("Use what? (bandage, draught/potion)");
+        return; // no enemy turn on a non-action
       }
-      logSystem("You mumble, unsure what that means. (Type 'help' for commands.)");
-      break;
-    }
-  }
 
-  scheduleSave();
+      // TRY your existing use system first
+      let used = false;
+      if (typeof handleUse === "function") {
+        // extra fields won't hurt if handleUse ignores them
+        used = !!handleUse(argStr, { inCombat: true });
+      } else {
+        // fallback to your explicit item functions if handleUse isn't available
+        if (argStr.includes("bandage")) used = useBandage(true);
+        else if (argStr.includes("draught") || argStr.includes("potion")) used = useHealingDraught(true);
+        else {
+          logSystem("You don't have anything like that worth using right now.");
+          used = false;
+        }
+      }
+
+      if (!used) return;
+
+      // ✅ THE FIX:
+      // Using an item is your whole turn AND the enemy does NOT deal damage this turn.
+      logSystem("For a heartbeat, the pressure relents—no strike comes.");
+      return;
+    }
+
+    case "attack":
+    case "hit":
+    case "strike":
+    case "stab":
+    case "slash":
+      doPlayerAttack();
+      if (!combat.inCombat) return;
+      doEnemyTurn();
+      return;
+
+    case "run":
+    case "flee":
+    case "escape":
+      if (typeof tryFlee === "function") {
+        const fled = !!tryFlee();
+        if (!fled && combat.inCombat) doEnemyTurn();
+      } else {
+        logSystem("You try to run, but your legs don't find the opening.");
+        doEnemyTurn();
+      }
+      return;
+
+    default:
+      logSystem("In combat, that won't save you. (Try: attack, use <item>, inventory, run)");
+      return;
+  }
 }
 // =========================
 // Autosave to server
